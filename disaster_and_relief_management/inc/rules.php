@@ -7,6 +7,21 @@ class RuleViolation extends Exception
 }
 
 /**
+ * Locks the rows that limit a record, so two people saving at the same moment cannot both pass the capacity / stock check.
+ * Call it inside a transaction, before check_rules(); the locks are released by commit / rollback.
+ * Lock order is always person, then shelter / item, so two saves cannot block each other forever.
+ */
+function lock_for_rules(string $t, array $f): void
+{
+    if ($t === 'shelter_assignment') {
+        q('SELECT Person_ID FROM affected_person WHERE Person_ID = ? FOR UPDATE', [(int) ($f['Person_ID'] ?? 0)]);
+        q('SELECT Shelter_ID FROM shelter WHERE Shelter_ID = ? FOR UPDATE', [(int) ($f['Shelter_ID'] ?? 0)]);
+    } elseif ($t === 'relief_distribution') {
+        q('SELECT Relief_ID FROM relief_item WHERE Relief_ID = ? FOR UPDATE', [(int) ($f['Relief_ID'] ?? 0)]);
+    }
+}
+
+/**
  * @param array<string,mixed> $f  submitted form values (column => text)
  * @param array<string,string>|null $pk  key of the row being edited (null when adding)
  * @return string|null a plain-language error, or null when the row is fine

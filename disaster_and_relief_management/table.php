@@ -146,6 +146,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $f = is_array($_POST['f'] ?? null) ? $_POST['f'] : [];
     try {
+        db()->begin_transaction();            // check + write + audit entry succeed or fail together
+        lock_for_rules($t, $f);               // capacity / stock cannot be passed by two people at once
         if ($op === 'add' || $op === 'edit') {
             $viol = check_rules($t, $f, $op === 'edit' ? pk_from($_POST, $pks) : null);   // capacity, stock and "belongs to this disaster" rules
             if ($viol !== null) {
@@ -169,6 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newId = db()->insert_id;
             audit('add', $t, $newId ? "$pks[0]=$newId" : key_text(array_combine($pks, array_map(fn($p) => (string) ($f[$p] ?? ''), $pks))),
                   implode('; ', array_map(fn($fl, $v) => trim($fl, '`') . ' = ' . $v, $fields, $vals)));
+            db()->commit();
             flash('ok', 'Record added to ' . pretty($t) . '.');
             header('Location: ' . $back);
             exit;
@@ -201,6 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             audit('edit', $t, key_text($pk), $changes ? implode('; ', $changes) : 'no field changed');
+            db()->commit();
             flash('ok', 'Record updated.');
             header('Location: ' . $back);
             exit;
@@ -212,11 +216,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $gone = row1("SELECT * FROM $qt WHERE $w", $wv) ?? [];
             q("DELETE FROM $qt WHERE $w", $wv);
             audit('delete', $t, key_text($pk), implode('; ', array_map(fn($k, $v) => $k . ' = ' . ($v ?? '(empty)'), array_keys($gone), $gone)));
+            db()->commit();
             flash('ok', 'Record deleted.');
             header('Location: ' . $back);
             exit;
         }
     } catch (mysqli_sql_exception $e) {
+        db()->rollback();
         $msg = friendly_error($e);
         if ($op === 'delete') {
             flash('err', $msg);
@@ -227,10 +233,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $formVals = $f;
         $action   = $op === 'edit' ? 'edit' : 'add';
     } catch (RuleViolation $e) {
+        db()->rollback();
         $formErr  = $e->getMessage();         // same as a database error: stay on the form, keep what was typed
         $formVals = $f;
         $action   = $op === 'edit' ? 'edit' : 'add';
     } catch (RuntimeException $e) {
+        db()->rollback();
         flash('err', $e->getMessage());
         header('Location: ' . $back);
         exit;

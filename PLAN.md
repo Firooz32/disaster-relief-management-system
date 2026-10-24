@@ -86,6 +86,8 @@ Delivery: `inc/upgrade.php` (in place) and `disaster_and_relief_management.sql` 
 | `information_schema` row counts are estimates | Always count with `COUNT(*)` before deciding anything about user data |
 | Limited MySQL user cannot ALTER | Clear message "needs a one-time upgrade ... put root in config.php"; nothing is changed |
 | Map needs internet | Page says so; the three area lists still work |
+| A browser that sends no Referer gets blocked map tiles | Header `Referrer-Policy: strict-origin-when-cross-origin` and a `referrerPolicy` on the tile layers; documented as a known limit |
+| Two people saving into the last places at once | One transaction per save with `SELECT ... FOR UPDATE` on the family and the shelter / relief item; `tests/concurrency.php` proves it |
 | Mixed units in "relief left" | Dashboard label changed to "Relief units left"; per-item figures stay in the Relief Item table |
 
 ## 8. Out of scope (possible later work)

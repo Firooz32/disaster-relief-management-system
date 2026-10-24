@@ -73,6 +73,12 @@ Overall status: **all tasks complete** (last verification: 25 Oct 2026).
 - [x] `PLAN.md`, `TASKS.md` (these files)
 - [x] `disaster_and_relief_management.zip` rebuilt and tested from an extracted copy (fresh install + full suite)
 
+## Task 10 - Corrections after delivery  `[x]`
+- [x] map tiles blocked by OpenStreetMap ("403 Access blocked"): `Referrer-Policy` header and the tile layers now send the site as Referer
+- [x] saves are race-safe: one transaction per save with row locks on the family and the shelter / relief item (`lock_for_rules()`); proved by `tests/concurrency.php` (control without lock overbooks, with lock exactly one wins)
+- [x] documentation corrected: known limits added to README.md and the Word guide; the guide no longer claims that every page was checked in a browser (16 sample pages were; the other table pages by script)
+- [x] localhost made available: Apache fixed (newer `vcruntime140.dll` next to `httpd.exe`), project linked into `C:\wamp64\www\`, `start_localhost.bat` / `stop_localhost.bat`
+
 ## Final state of the user's database
 - [x] 22 tables, 8 triggers, sample data of the final version
 - [x] the existing administrator account is present (restored from backup after a test run replaced the database; same password hash)

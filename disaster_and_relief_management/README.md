@@ -119,6 +119,12 @@ php tests/smoke.php        # MySQL must be running; changes nothing permanent (w
 signal / space / relief / path calculations (including boundaries: signal 3|4|7|8, 80 % relief, radius edges), data-health detection, role permissions.
 Use `DRMS_DB_NAME=<name>` to run against a copy.
 
+```
+php tests/concurrency.php  # two PHP processes save into the last places of a shelter at the same moment; exactly one must win
+```
+
+Saving through the web pages is **race-safe**: each save runs in one transaction and first locks the family and the shelter (or the relief item), so two people cannot both pass the capacity / stock check. The test also runs a control without the lock to show that the race is real. It adds two temporary families and removes them again.
+
 The project was also checked by hand and with scripts for: access without a session, CSRF, viewer / editor limits, SQL-injection and stored-XSS attempts, lockout and idle timeout,
 every page and table in a real headless browser with no console or CSP errors, and byte-for-byte equality of an upgraded database and a fresh install.
 
@@ -131,6 +137,16 @@ every page and table in a real headless browser with no console or CSP errors, a
 * **Start again from scratch**: drop `disaster_and_relief_management` in phpMyAdmin and reload the page (the admin account must then be created again).
 
 ---
+
+## 6a. Known limits
+
+* **Path geometry is simplified.** An area counts as "being crossed" when its centre point lies inside the disaster's impact circle; real areas are shapes. Radii and the sample path are invented.
+* **Relief status measures reach, not sufficiency.** A family counts as "received" once it is a recipient of any distribution of that disaster. "Relief units left" on the Dashboard adds different units (kilograms, bottles, blankets); per-item numbers are in the Relief Item table.
+* **Capacity and stock limits apply to saves made in the web pages.** Changes made directly in SQL (phpMyAdmin) bypass them; the *link* rules (a shelter must belong to the disaster, etc.) are triggers and always apply, and Data Health reports any over-capacity shelter.
+* **Signals** follow the 1-3 / 4-7 / 8-10 bands of the requirements, not any official warning scheme; the wording of the meanings is descriptive.
+* **Map tiles need internet** and a browser that sends a Referer (OpenStreetMap blocks requests without one). The page header `Referrer-Policy: strict-origin-when-cross-origin` and the tile layer both ask for that; a privacy setting that blocks Referers (for example Brave Shields) can still cause "Access blocked" tiles.
+* **Plain HTTP on localhost.** Use HTTPS if the system is ever opened to a network. Apache and MySQL must be started again after the PC restarts (`start_localhost.bat`).
+* All sample data is fictional.
 
 ## 7. Files
 
