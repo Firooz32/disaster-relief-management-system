@@ -156,12 +156,12 @@ function page_start(string $title, string $active = ''): void
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($title) ?> - Disaster &amp; Relief Management</title>
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body class="app">
 <aside class="side" id="side">
-  <a class="brand" href="dashboard.php"><span class="logo">DR</span><span>Disaster &amp; Relief<br><small>Management System</small></span></a>
+  <a class="brand" href="dashboard.php"><img class="logo-img" src="assets/logo.png" width="40" height="40" alt=""><span>Disaster &amp; Relief<br><small>Management System</small></span></a>
   <nav>
     <a class="nav<?= $active === 'dashboard' ? ' on' : '' ?>" href="dashboard.php">Dashboard</a>
     <a class="nav<?= $active === 'disaster_report' ? ' on' : '' ?>" href="disaster.php">Disaster Report</a>

@@ -79,6 +79,10 @@ Overall status: **all tasks complete** (last verification: 25 Oct 2026).
 - [x] documentation corrected: known limits added to README.md and the Word guide; the guide no longer claims that every page was checked in a browser (16 sample pages were; the other table pages by script)
 - [x] localhost made available: Apache fixed (newer `vcruntime140.dll` next to `httpd.exe`), project linked into `C:\wamp64\www\`, `start_localhost.bat` / `stop_localhost.bat`
 
+## Task 11 - Logo and ER diagram  `[x]`
+- [x] original vector logo (cyclone, shelter, waves, map grid): `assets/logo.svg`, `logo.png` (used by the pages), `logo-512.png`; shown on the sign-in page, the menu, the browser tab, the READMEs, the ER diagram and the Word guide cover
+- [x] `DRMS_ER_Diagram.pdf` (A3, 3 pages): drawn from MySQL's information_schema, cross-checked against `disaster_and_relief_management.sql`; verified by script (22 tables, 99 columns with type / key / NULL flags, 29 lines touching the right tables with the real ON DELETE rule, cardinality symbols, 16 CHECKs, 8 unique keys, 8 triggers)
+
 ## Final state of the user's database
 - [x] 22 tables, 8 triggers, sample data of the final version
 - [x] the existing administrator account is present (restored from backup after a test run replaced the database; same password hash)

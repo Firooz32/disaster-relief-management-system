@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo-512.png" width="120" alt="Disaster Mapping & Relief Management System logo"></p>
+
 # Disaster Mapping & Relief Management System
 
 A PHP + MySQL web application for recording disasters and their effects, sheltering affected families, handing out relief,
@@ -153,6 +155,7 @@ every page and table in a real headless browser with no console or CSP errors, a
 ```
 index.php            sign-in / first-run          dashboard.php   dashboard             report.php + report_data.php + assets/report.js   Live Report
 table.php            generic table pages          disaster.php    disaster report       health.php  data health
+assets/logo.png, logo.svg, logo-512.png   the logo (see below)
 map.php + assets/map.js   map                      search.php + api.php   search         users.php, account.php, logout.php
 db.php               connection, installer, upgrade, SQL script runner      router.php   private-file guard for php -S
 inc/boot.php         session, headers, roles, CSRF, audit, layout          inc/meta.php   schema reader, permissions
@@ -161,6 +164,8 @@ inc/health.php       the 17 data checks                                    inc/u
 disaster_and_relief_management.sql    fresh-install file (schema, sample data, triggers)
 tests/smoke.php      automated checks              create_db_user.sql   limited MySQL user          config.sample.php   settings template
 ```
+
+**Logo.** `assets/logo.png` is the one image used for the sign-in page, the menu and the browser tab; `logo.svg` is its vector source and `logo-512.png` a large copy for documents. To use your own logo, replace `assets/logo.png` with a square image (192 x 192 px or larger); nothing else needs to change.
 
 ## 8. Sample data
 

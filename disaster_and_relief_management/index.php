@@ -86,12 +86,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $dbErr === '') {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sign in - Disaster &amp; Relief Management</title>
-<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body class="login-body">
 <div class="login-card">
-  <div class="logo big">DR</div>
+  <img class="logo-img big" src="assets/logo.png" width="64" height="64" alt="Disaster Mapping &amp; Relief Management System">
   <h1>Disaster Mapping &amp; Relief Management System</h1>
   <p class="muted"><?= $setup ? 'First run: create the administrator account' : 'Sign in to continue' ?></p>
   <?php if ($dbErr !== ''): ?>
