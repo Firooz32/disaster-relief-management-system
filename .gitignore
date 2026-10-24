@@ -1,0 +1,10 @@
+# secrets and local settings (copy config.sample.php to config.php)
+disaster_and_relief_management/config.php
+
+# build and editor leftovers
+*.zip
+*.log
+~$*
+Thumbs.db
+.vscode/
+.claude/

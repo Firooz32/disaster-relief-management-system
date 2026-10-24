@@ -1,0 +1,5 @@
+# Keep source, config and dumps out of the browser (needs AllowOverride All, the WampServer default).
+Options -Indexes
+<FilesMatch "(?i)\.(sql|txt|md|log|ini|bak|sample\.php)$|^(config|router)\.php$">
+    Require all denied
+</FilesMatch>
