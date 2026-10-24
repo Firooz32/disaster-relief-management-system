@@ -100,7 +100,7 @@ The dashboard shows the number of problems.
 * Prepared statements everywhere; table and column names are whitelisted against the real schema; output is HTML-escaped; the map and the live report build popups from text only.
 * CSRF token on every state-changing request (including sign-out); `session.use_strict_mode`, HttpOnly + SameSite cookies, session id renewed at sign-in and password change.
 * bcrypt password hashes, account lockout, idle timeout, roles checked on the server.
-* Headers: `Content-Security-Policy` (scripts only from this site and `unpkg.com` for Leaflet), `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy`. Leaflet is loaded with Subresource Integrity hashes.
+* Headers: `Content-Security-Policy` (scripts only from this site and `unpkg.com` for Leaflet), `X-Frame-Options: DENY`, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin` (OpenStreetMap blocks map tiles when no Referer is sent). Leaflet is loaded with Subresource Integrity hashes.
 * Database errors are written to the PHP error log, never shown. CHECK / trigger messages shown to users are plain language.
 * `.htaccess` (Apache / WampServer) and `router.php` (PHP built-in server) hide `config.php`, `*.sql`, `*.txt`, `*.md`, `inc/`, `tests/`.
 * CSV export neutralises spreadsheet formulas (`=`, `+`, `-`, `@`).

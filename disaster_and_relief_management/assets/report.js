@@ -111,7 +111,7 @@ function initPathMap() {
     return false;
   }
   pathMap = L.map('pathMap');
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap contributors' }).addTo(pathMap);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, referrerPolicy: 'strict-origin-when-cross-origin', attribution: '&copy; OpenStreetMap contributors' }).addTo(pathMap);
   pathLayer = L.layerGroup().addTo(pathMap);
   pathMap.setView([22.6, 89.5], 8);
   return true;

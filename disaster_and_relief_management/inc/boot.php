@@ -24,7 +24,7 @@ const SESSION_IDLE_HOURS = 4;
 if (!headers_sent() && PHP_SAPI !== 'cli') {      // browser protections: no framing, no MIME sniffing, scripts only from this site and Leaflet's CDN
     header('X-Frame-Options: DENY');
     header('X-Content-Type-Options: nosniff');
-    header('Referrer-Policy: same-origin');
+    header('Referrer-Policy: strict-origin-when-cross-origin');   // OpenStreetMap blocks map tiles when no Referer is sent
     header("Content-Security-Policy: default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; "
         . "img-src 'self' data: https://tile.openstreetmap.org https://unpkg.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
 }
