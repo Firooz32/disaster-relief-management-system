@@ -29,7 +29,12 @@
     });
     list.hidden = false;
   }
-  function pick(i) { box.value = items[i].v; hide(); form.submit(); }
+  function pick(i) {
+    box.value = items[i].v;
+    if (colSel && items[i].c) colSel.value = items[i].c;
+    hide();
+    form.submit();
+  }
   function fetchSug() {
     var v = box.value.trim();
     if (!v) { hide(); return; }

@@ -92,6 +92,63 @@ function fk_map(string $t): array
     return fk_all()['fk'][$t] ?? [];
 }
 
+/** Text-like columns used as readable search values when another table references this table. */
+function related_search_columns(string $t): array
+{
+    $out = [];
+    foreach (table_cols($t) as $c) {
+        $type = strtolower((string) $c['Type']);
+        if ($c['Key'] !== 'PRI' && preg_match('/^(char|varchar|tinytext|text|mediumtext|longtext|enum)\b/', $type)) {
+            $out[] = (string) $c['Field'];
+        }
+    }
+    return $out;
+}
+
+/**
+ * Search direct values and readable labels from referenced rows. Identifiers come only from database schema metadata.
+ * Returns a WHERE clause without the WHERE keyword and the matching parameter list.
+ *
+ * @return array{0:string,1:array<int,string>}
+ */
+function table_search_condition(string $t, string $query, string $column = ''): array
+{
+    $columns = array_column(table_cols($t), 'Field');
+    $use = $column !== '' && in_array($column, $columns, true) ? [$column] : $columns;
+    $pattern = '%' . addcslashes($query, '%_\\') . '%';
+    $terms = [];
+    $params = [];
+    $fks = fk_map($t);
+    $relatedIndex = 0;
+
+    foreach ($use as $name) {
+        $terms[] = 'CAST(`' . $name . '` AS CHAR) LIKE ?';
+        $params[] = $pattern;
+        if (!isset($fks[$name])) {
+            continue;
+        }
+        [$referencedTable, $referencedColumn] = $fks[$name];
+        if (in_array($referencedTable, HIDDEN_TABLES, true)) {
+            continue;
+        }
+        $labelColumns = related_search_columns($referencedTable);
+        if (!$labelColumns) {
+            continue;
+        }
+        $alias = 'search_fk_' . $relatedIndex++;
+        $labels = [];
+        foreach ($labelColumns as $labelColumn) {
+            $labels[] = 'CAST(`' . $alias . '`.`' . $labelColumn . '` AS CHAR) LIKE ?';
+            $params[] = $pattern;
+        }
+        $terms[] = 'EXISTS (SELECT 1 FROM `' . $referencedTable . '` AS `' . $alias . '`'
+            . ' WHERE `' . $alias . '`.`' . $referencedColumn . '` = `' . $t . '`.`' . $name . '`'
+            . ' AND (' . implode(' OR ', $labels) . '))';
+    }
+
+    return [$terms ? '(' . implode(' OR ', $terms) . ')' : '1 = 0', $params];
+}
+
 /** Columns of other tables that point at $t, with their ON DELETE rule. */
 function child_refs(string $t): array
 {

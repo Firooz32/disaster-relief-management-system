@@ -7,14 +7,15 @@ guard();
 
 $s = overall_stats();
 $stat = [
-    ['Disasters recorded',    $s['disasters'], 'disaster'],
-    ['Affected families',     $s['people'],    'affected_person'],
-    ['Shelters',              $s['shelters'],  'shelter'],
-    ['Rescue organisations',  $s['orgs'],      'rescue_org'],
-    ['Early warnings',        $s['warnings'],  'early_warning'],
-    ['Total shelter capacity', $s['capacity'], 'shelter'],
-    ['People in shelters now', $s['occupied'], 'shelter_assignment'],
-    ['Relief units left',     $s['relief'] - $s['distributed'], 'relief_distribution'],
+    ['Disasters on record', $s['disasters'], 'disaster', 'disaster'],
+    ['Families affected', $s['people'], 'affected_person', 'families'],
+    ['Shelter locations', $s['shelters'], 'shelter', 'shelter'],
+    ['Rescue organisations', $s['orgs'], 'rescue_org', 'organisations'],
+    ['Early warnings issued', $s['warnings'], 'early_warning', 'warnings'],
+    ['Total shelter places', $s['capacity'], 'shelter', 'capacity'],
+    ['People sheltered now', $s['occupied'], 'shelter_assignment', 'occupancy'],
+    ['Relief units remaining', $s['relief'] - $s['distributed'], 'relief_distribution', 'relief'],
+    ['Estimated damage loss', 'Tk ' . number_format($s['loss']), 'damage', 'loss'],
 ];
 $disasters = disaster_summary();
 $risk      = risk_summary();
@@ -46,11 +47,46 @@ foreach (all_tables() as $t) {
 
 page_start('Dashboard', 'dashboard');
 ?>
-<div class="cards">
-  <?php foreach ($stat as [$label, $val, $t]): ?>
-    <a class="card stat" href="table.php?t=<?= h(urlencode($t)) ?>"><div class="num"><?= number_format($val) ?></div><div class="lbl"><?= h($label) ?></div></a>
+<div class="cards dashboard-options">
+  <?php foreach ($stat as [$label, $val, $t, $icon]): ?>
+    <a class="card stat dashboard-card dashboard-card-<?= h($icon) ?>" href="table.php?t=<?= h(urlencode($t)) ?>">
+      <span class="dashboard-icon dashboard-icon-<?= h($icon) ?>" aria-hidden="true">
+        <?php if ($icon === 'disaster'): ?>
+          <svg viewBox="0 0 48 48"><path d="M24 5 44 40H4L24 5Z"/><path d="M24 17v11m0 6h.01"/></svg>
+        <?php elseif ($icon === 'families' || $icon === 'organisations' || $icon === 'occupancy'): ?>
+          <svg viewBox="0 0 48 48"><circle cx="18" cy="16" r="6"/><circle cx="33" cy="18" r="5"/><path d="M6 39v-3a12 12 0 0 1 24 0v3H6Zm24-12a9 9 0 0 1 12 9v3h-8"/></svg>
+        <?php elseif ($icon === 'shelter'): ?>
+          <svg viewBox="0 0 48 48"><path d="m5 22 19-16 19 16M10 19v23h28V19M20 42V28h8v14"/></svg>
+        <?php elseif ($icon === 'warnings'): ?>
+          <svg viewBox="0 0 48 48"><path d="M24 6 44 41H4L24 6Z"/><path d="M24 18v11m0 6h.01"/></svg>
+        <?php elseif ($icon === 'capacity'): ?>
+          <svg viewBox="0 0 48 48"><path d="M8 40V10h32v30M8 24h32M14 18h6m8 0h6M16 40V30m16 10V30"/></svg>
+        <?php elseif ($icon === 'relief'): ?>
+          <svg viewBox="0 0 48 48"><path d="m5 15 19-9 19 9-19 10-19-10Zm0 0v20l19 9 19-9V15M24 25v19m-9-24 19-10"/></svg>
+        <?php else: ?>
+          <svg viewBox="0 0 48 48"><path d="M7 40V9m0 31h35M13 33l9-10 7 5 12-15"/><path d="M33 13h8v8"/></svg>
+        <?php endif; ?>
+      </span>
+      <span class="dashboard-card-copy">
+        <span class="num"><?= h($val) ?></span>
+        <span class="lbl"><?= h($label) ?></span>
+        <span class="dashboard-card-link">Explore records <span aria-hidden="true">&rarr;</span></span>
+      </span>
+    </a>
   <?php endforeach; ?>
-  <div class="card stat"><div class="num">Tk <?= number_format($s['loss']) ?></div><div class="lbl">Total estimated loss</div></div>
+  <a class="card stat dashboard-card weather-launch" href="weather.php">
+    <span class="dashboard-icon weather-icon" aria-hidden="true">
+      <svg viewBox="0 0 48 48" focusable="false">
+        <circle cx="32" cy="15" r="8" fill="#f3b63f"/>
+        <path d="M13 36h22a8 8 0 0 0 .4-16 12 12 0 0 0-22.8 3.2A6.5 6.5 0 0 0 13 36Z" fill="#fff" stroke="#1684ad" stroke-width="2.5" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span class="dashboard-card-copy">
+      <span class="num">Live Weather</span>
+      <span class="lbl">Khulna conditions, forecast &amp; map</span>
+      <span class="dashboard-card-link">Check the forecast <span aria-hidden="true">&rarr;</span></span>
+    </span>
+  </a>
 </div>
 
 <section class="panel" id="liveSummary">

@@ -26,7 +26,7 @@ if (!headers_sent() && PHP_SAPI !== 'cli') {      // browser protections: no fra
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: strict-origin-when-cross-origin');   // OpenStreetMap blocks map tiles when no Referer is sent
     header("Content-Security-Policy: default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; "
-        . "img-src 'self' data: https://tile.openstreetmap.org https://unpkg.com; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+        . "img-src 'self' data: https://tile.openstreetmap.org https://unpkg.com; connect-src 'self'; frame-src 'self' https://www.ventusky.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
 }
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -157,7 +157,7 @@ function page_start(string $title, string $active = ''): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($title) ?> - Disaster &amp; Relief Management</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=<?= (int) filemtime(__DIR__ . '/../assets/style.css') ?>">
 </head>
 <body class="app">
 <aside class="side" id="side">
@@ -167,6 +167,7 @@ function page_start(string $title, string $active = ''): void
     <a class="nav<?= $active === 'disaster_report' ? ' on' : '' ?>" href="disaster.php">Disaster Report</a>
     <a class="nav<?= $active === 'map' ? ' on' : '' ?>" href="map.php">Map</a>
     <a class="nav<?= $active === 'report' ? ' on' : '' ?>" href="report.php">Live Report</a>
+    <a class="nav<?= $active === 'weather' ? ' on' : '' ?>" href="weather.php">Live Weather</a>
     <a class="nav<?= $active === 'health' ? ' on' : '' ?>" href="health.php">Data Health</a>
     <?php if (is_admin()): ?><a class="nav<?= $active === 'users' ? ' on' : '' ?>" href="users.php">Users</a><?php endif; ?>
     <div class="nav-h">Main tables</div>

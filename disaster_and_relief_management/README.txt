@@ -34,6 +34,7 @@ Live Report (প্রতি ৫ সেকেন্ডে নিজে থেক
 
 অন্যান্য পেজ
    Dashboard      : মোট সংখ্যা, "Live status" কার্ড, "Needs attention" তালিকা
+   Live Weather   : Khulna-র current weather, forecast ও interactive map (Ventusky দ্বারা চালিত; ইন্টারনেট লাগে)
    Data Health    : ১৭টি পরীক্ষা - ডেটা নিজের সাথে মিলছে কিনা (shelter-এ ধারণক্ষমতার বেশি, ভুল disaster-এর shelter ইত্যাদি)
    Disaster Report: একটি দুর্যোগের পূর্ণ রিপোর্ট (সিগন্যাল, পথ, ক্ষতি, shelter, ত্রাণ, এলাকাভিত্তিক ত্রাণ-কভারেজ) - প্রিন্ট করা যায়
    Map            : ঝুঁকিপূর্ণ এলাকা ও shelter মানচিত্রে

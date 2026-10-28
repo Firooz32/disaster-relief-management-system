@@ -7,11 +7,9 @@ guard();
 $q    = trim((string) ($_GET['q'] ?? ''));
 $hits = [];
 if ($q !== '') {
-    $like = '%' . addcslashes($q, '%_\\') . '%';
     foreach (all_tables() as $t) {
         $cols  = array_column(table_cols($t), 'Field');
-        $where = implode(' OR ', array_map(fn($c) => 'CAST(`' . $c . '` AS CHAR) LIKE ?', $cols));
-        $par   = array_fill(0, count($cols), $like);
+        [$where, $par] = table_search_condition($t, $q);
         $n     = (int) scalar("SELECT COUNT(*) FROM `$t` WHERE $where", $par);
         if ($n === 0) {
             continue;

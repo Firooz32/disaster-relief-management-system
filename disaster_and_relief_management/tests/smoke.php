@@ -181,6 +181,14 @@ check('sample: the 16-place school shelter is full (red)', ($space['Dacope Union
 check('sample: Terokhada shelter has exactly 2 places left (green)', ($space['Terokhada Primary School Shelter']['space']['left'] ?? 0) === 2);
 check('space: left + occupied = capacity whenever a shelter is not over-full',
     !array_filter(shelter_capacity(), fn($s) => $s['occupied'] <= $s['capacity'] && $s['space']['left'] + $s['occupied'] !== $s['capacity']));
+[$shelterSearch, $shelterSearchParams] = table_search_condition('shelter_assignment', 'Terokhada Primary School Shelter', 'Shelter_ID');
+$shelterSearchCount = (int) scalar("SELECT COUNT(*) FROM shelter_assignment WHERE $shelterSearch", $shelterSearchParams);
+$allColumnSearch = table_search_condition('shelter_assignment', 'Terokhada Primary School Shelter');
+$allColumnSearchCount = (int) scalar("SELECT COUNT(*) FROM shelter_assignment WHERE {$allColumnSearch[0]}", $allColumnSearch[1]);
+$shelterAssignmentCount = (int) scalar("SELECT COUNT(*) FROM shelter_assignment WHERE Shelter_ID = (SELECT Shelter_ID FROM shelter WHERE Shelter_Name = ?)",
+    ['Terokhada Primary School Shelter']);
+check('table and global search find shelter assignments by their referenced shelter name',
+    $shelterSearchCount === $shelterAssignmentCount && $allColumnSearchCount === $shelterAssignmentCount && $shelterAssignmentCount > 0);
 // live disaster path
 check('distance: 0.1 degree of longitude at 22.5N is about 10.3 km, same point is 0', abs(km_between(22.5, 89.4, 22.5, 89.5) - 10.27) < 0.1 && km_between(22.5, 89.4, 22.5, 89.4) < 0.001);
 $ps = path_status();
@@ -212,6 +220,12 @@ check('rule: a relief recipient must be affected by the distribution\'s disaster
 check('rule: a distribution cannot move to a disaster its recipients are not part of',
     str_contains((string) check_rules('relief_distribution', ['Disaster_ID' => 1, 'Relief_ID' => 1, 'Shelter_ID' => 1, 'Org_ID' => '', 'Quantity' => 1], ['Distribution_ID' => '57']), 'not affected by that disaster'));
 check('alerts() runs and reports the almost-full shelter', count(array_filter(alerts(), fn($a) => $a[0] === 'err')) >= 1);
+$terokhadaAlert = current(array_filter(alerts(), fn($a) => str_starts_with($a[1], 'Terokhada Primary School Shelter')));
+$alertParams = [];
+parse_str((string) parse_url($terokhadaAlert[2] ?? '', PHP_URL_QUERY), $alertParams);
+check('Terokhada shelter alert opens its filtered assignment records',
+    ($alertParams['t'] ?? '') === 'shelter_assignment' && ($alertParams['col'] ?? '') === 'Shelter_ID'
+    && ($alertParams['q'] ?? '') === 'Terokhada Primary School Shelter');
 
 echo $fail === 0 ? "\nAll checks passed.\n" : "\n$fail check(s) FAILED.\n";
 exit($fail === 0 ? 0 : 1);

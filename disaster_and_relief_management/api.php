@@ -21,6 +21,7 @@ if ($qs === '' || !in_array($t, all_tables(), true)) {
 $names = array_column(table_cols($t), 'Field');
 $col   = (string) ($_GET['col'] ?? '');
 $use   = ($col !== '' && in_array($col, $names, true)) ? [$col] : $names;
+$fks   = fk_map($t);
 $like  = addcslashes($qs, '%_\\');
 
 $out  = [];
@@ -41,6 +42,30 @@ foreach ([$like . '%', '%' . $like . '%'] as $pattern) {      // words that star
             $out[] = ['v' => $v, 'c' => $c];
             if (count($out) >= 8) {
                 break;
+            }
+        }
+        if (isset($fks[$c]) && !in_array($fks[$c][0], HIDDEN_TABLES, true)) {
+            [$referencedTable, $referencedColumn] = $fks[$c];
+            foreach (related_search_columns($referencedTable) as $labelColumn) {
+                if (count($out) >= 8) {
+                    break 2;
+                }
+                $rs = rows("SELECT DISTINCT CAST(r.`$labelColumn` AS CHAR) AS v FROM `$referencedTable` AS r"
+                    . " WHERE CAST(r.`$labelColumn` AS CHAR) LIKE ?"
+                    . " AND EXISTS (SELECT 1 FROM `$t` AS source WHERE source.`$c` = r.`$referencedColumn`)"
+                    . ' ORDER BY v LIMIT 8', [$pattern]);
+                foreach ($rs as $r) {
+                    $v = mb_substr((string) $r['v'], 0, 80);
+                    $k = mb_strtolower($v);
+                    if (isset($seen[$k])) {
+                        continue;
+                    }
+                    $seen[$k] = true;
+                    $out[] = ['v' => $v, 'c' => $c];
+                    if (count($out) >= 8) {
+                        break 2;
+                    }
+                }
             }
         }
     }

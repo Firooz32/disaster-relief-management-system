@@ -400,14 +400,8 @@ if ($action === 'delete') {
 $where  = '';
 $params = [];
 if ($q !== '') {
-    $like  = '%' . addcslashes($q, '%_\\') . '%';
-    $use   = $col !== '' ? [$col] : $names;
-    $parts = [];
-    foreach ($use as $n) {
-        $parts[]  = 'CAST(`' . $n . '` AS CHAR) LIKE ?';
-        $params[] = $like;
-    }
-    $where = ' WHERE ' . implode(' OR ', $parts);
+    [$condition, $params] = table_search_condition($t, $q, $col);
+    $where = ' WHERE ' . $condition;
 }
 $orderCols = $pks ?: [$names[0]];
 $order     = ' ORDER BY ' . ($sortCol !== '' ? '`' . $sortCol . '` ' . ($desc ? 'DESC' : 'ASC') . ', ' : '')

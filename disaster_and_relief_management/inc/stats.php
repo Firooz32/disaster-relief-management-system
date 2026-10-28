@@ -300,7 +300,8 @@ function alerts(): array
     $a = [];
     foreach (shelter_summary() as $s) {
         if ($s['capacity'] > 0 && $s['occupied'] / $s['capacity'] >= 0.9) {
-            $a[] = ['err', $s['name'] . ' is ' . round($s['occupied'] / $s['capacity'] * 100) . '% full (' . $s['occupied'] . ' of ' . $s['capacity'] . ' places).', 'table.php?t=shelter_assignment'];
+            $a[] = ['err', $s['name'] . ' is ' . round($s['occupied'] / $s['capacity'] * 100) . '% full (' . $s['occupied'] . ' of ' . $s['capacity'] . ' places).',
+                'table.php?' . http_build_query(['t' => 'shelter_assignment', 'col' => 'Shelter_ID', 'q' => $s['name']])];
         }
     }
     foreach (relief_summary() as $r) {

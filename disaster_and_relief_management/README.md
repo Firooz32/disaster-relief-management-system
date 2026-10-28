@@ -27,7 +27,7 @@ Built for WampServer; no framework, no build step, no Composer.
 **Without Apache (`start_server.bat`)** - starts WampServer's MySQL and PHP's built-in server on <http://127.0.0.1:8099/> and opens the browser.
 Edit the three paths at the top of the file if your WampServer versions differ. `router.php` keeps private files (config, SQL dump, `inc/`, `tests/`) unreachable on this server.
 
-Requirements: PHP 8.1 or newer with `mysqli` and `mbstring` (tested on PHP 8.2), MySQL 8.0.16 or newer (CHECK constraints and triggers; tested on 8.2), internet access only for the map tiles (Leaflet / OpenStreetMap).
+Requirements: PHP 8.1 or newer with `mysqli` and `mbstring` (tested on PHP 8.2), MySQL 8.0.16 or newer (CHECK constraints and triggers; tested on 8.2), internet access for the map tiles (Leaflet / OpenStreetMap) and Ventusky Live Weather.
 
 ## Share your local server
 
@@ -80,11 +80,12 @@ A signed-in session ends after 4 hours without a click; the Live Report's automa
 |---|---|
 | **Dashboard** | Totals, **Live status** cards (warning signals, full shelters, relief shortages, data health), *Needs attention* list, disasters at a glance, risk and shelter-occupancy bars, table index |
 | **Live Report** | The control room view, refreshed every 5 s (see 3.1) |
-| **Data Health** | 17 database checks that find records that contradict each other or are incomplete (see 3.3) |
+| **Live Weather** | Khulna current weather, forecasts and interactive Ventusky map; use its search to change location |
+| **Data Health** | 17 database checks that find records that contradict each other or are incomplete (see 3.4) |
 | **Disaster Report** | One printable situation report per disaster: signals, areas, warnings, path, damage, shelters, organisations, relief given, **relief coverage by area**, affected families |
 | **Map** | All areas (risk-coloured circles) and shelters (green / orange / red by fill level) |
-| **Search** | One box that searches every table; autocomplete suggestions on each table page |
-| **Table pages** (21) | Sort, search, paginate, **CSV export**, add / edit / delete. Delete shows what else would disappear or what blocks it |
+| **Search** | One box that searches every table, including readable names from linked records; autocomplete suggestions on each table page |
+| **Table pages** (21) | Sort, search linked records, paginate, **CSV export**, add / edit / delete. Delete shows what else would disappear or what blocks it |
 | **Users** (admin) | Accounts and roles |
 | **Audit Log** | Who added / edited / deleted what, with the old and new values (read-only) |
 
@@ -106,7 +107,15 @@ All panels are fed by one JSON call, `report_data.php`, and redraw only when the
 
 To change what the panels show, edit data in the table pages: *Early Warning* (Signal Level), *Disaster* (Status Active / Ended), *Disaster Track* (path points), *Shelter Assignment* (check in / out), *Relief Distribution* + *Relief Recipient*, *Disaster Area* (Relief Shortage).
 
-### 3.2 Database (22 tables)
+### 3.2 Live Weather
+
+Open **Live Weather** from the Dashboard or navigation to view the weather page, initially centered on Khulna. The
+embedded map, conditions, search and forecasts are provided by Ventusky, whose branding remains visible in the embedded
+experience. Use the **Open Live Weather in a new tab** link if the embedded page
+is unavailable or inconvenient on your device. This feature requires an internet connection and relies on Ventusky's
+availability and embedding behavior.
+
+### 3.3 Database (22 tables)
 
 Main tables: `disaster`, `area`, `affected_person` (a family; `Family_Size` people; home `Area_ID`), `shelter`, `rescue_org`, `relief_item`, `emergency_item`, `early_warning` (with `Signal_Level` 1-10), `damage`,
 `shelter_assignment` (who stayed where; empty `Check_Out` = staying now), `relief_distribution` (what was given where), `disaster_track` (path points), `audit_log`, `users`.
@@ -117,7 +126,7 @@ Relationship tables: `disaster_area`, `disaster_shelter`, `disaster_affected_per
 * **Triggers** (`inc/triggers.sql`, 8): a stay or a distribution must use a shelter that belongs to that disaster, a distribution's organisation must belong to it, a relief recipient and a stay's person must be affected by that disaster, damage must be in an affected area. They also protect data changed in phpMyAdmin.
 * **Business rules** (`inc/rules.php`) with friendly messages: shelter capacity, one open stay per person, relief stock, organisation supplies the item.
 
-### 3.3 Data Health
+### 3.4 Data Health
 
 `health.php` runs 17 read-only checks: stays at unlinked shelters, people in two shelters, over-capacity shelters, relief given beyond stock, recipients of the wrong disaster, damage in unaffected areas,
 active disasters without a signal or area, families without a home area, missing coordinates, paths with no observed point, plus notes (long stays, low stock, families still sheltered after a disaster ended).
@@ -182,6 +191,7 @@ every page and table in a real headless browser with no console or CSP errors, a
 
 ```
 index.php            sign-in / first-run          dashboard.php   dashboard             report.php + report_data.php + assets/report.js   Live Report
+weather.php          Ventusky live weather for Khulna
 table.php            generic table pages          disaster.php    disaster report       health.php  data health
 assets/logo.png, logo.svg, logo-512.png   the logo (see below)
 map.php + assets/map.js   map                      search.php + api.php   search         users.php, account.php, logout.php

@@ -3,7 +3,8 @@
 # Disaster Mapping & Relief Management System
 
 A PHP 8 + MySQL 8 web application (WampServer) that records disasters and their effects, shelters affected families,
-tracks relief distribution and shows the whole situation on a **Live Report** that refreshes itself every 5 seconds.
+tracks relief distribution, shows **Live Weather** for Khulna (powered by Ventusky), and presents the whole situation
+on a **Live Report** that refreshes itself every 5 seconds.
 
 | Live Report panel | Rule |
 |---|---|
