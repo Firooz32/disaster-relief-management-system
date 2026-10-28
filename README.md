@@ -28,7 +28,7 @@ CSRF protection, Content-Security-Policy, 81 automated checks.
 
 * [`disaster_and_relief_management/README.md`](disaster_and_relief_management/README.md) - features, roles, database, security, tests, upgrade, troubleshooting
 * [`DRMS_Project_Overview_and_User_Guide.docx`](DRMS_Project_Overview_and_User_Guide.docx) - 45-page step-by-step guide with screenshots
-* [`DRMS_ER_Diagram.pdf`](DRMS_ER_Diagram.pdf) - entity-relationship diagram of the real database: 22 tables, 99 columns, 29 foreign keys, plus the full specification (A3, 3 pages)
+* [`DRMS_ER_Diagram.pdf`](DRMS_ER_Diagram.pdf) - entity-relationship diagram of the real database: 22 tables, 99 columns, 29 foreign keys, plus the full specification (2 pages: the diagram, then foreign keys, unique keys, CHECKs and triggers)
 * [`PLAN.md`](PLAN.md) - goals, decisions, architecture, quality gates
 * [`TASKS.md`](TASKS.md) - task checklist with what was verified
 

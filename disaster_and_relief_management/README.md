@@ -29,6 +29,34 @@ Edit the three paths at the top of the file if your WampServer versions differ. 
 
 Requirements: PHP 8.1 or newer with `mysqli` and `mbstring` (tested on PHP 8.2), MySQL 8.0.16 or newer (CHECK constraints and triggers; tested on 8.2), internet access only for the map tiles (Leaflet / OpenStreetMap).
 
+## Share your local server
+
+On Windows, install the `cloudflared` CLI (`winget install --id Cloudflare.cloudflared`) and start WampServer's Apache and MySQL:
+if Windows does not yet recognize `cloudflared`, open a new PowerShell terminal.
+
+```powershell
+..\start_localhost.bat /nobrowser
+```
+
+In a second PowerShell terminal, from this project folder, run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\share.ps1
+```
+
+The script forwards to port 80 by default; pass a different local port as an optional argument, for example
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\share.ps1 8080`.
+Copy the `https://<random-words>.trycloudflare.com` URL printed by `cloudflared` and append `/disaster_and_relief_management/`
+to open this app (Apache serves the project under that path). Keep both the local server and tunnel terminals running.
+Stop the tunnel with **Ctrl+C** in its terminal; stop WampServer with `..\stop_localhost.bat`.
+
+### Important notes
+
+* The URL is temporary and random. It changes whenever the tunnel restarts and works only while both the local server and tunnel are running.
+* Anyone with the link can access the app. Do not expose sensitive data, admin panels, or real credentials.
+* Quick Tunnels are for testing and demos, not production. They do not support Server-Sent Events (SSE) and have a limit of about 200 concurrent requests.
+* No Cloudflare account or auth token is needed. Never commit secrets.
+
 ---
 
 ## 2. Roles
