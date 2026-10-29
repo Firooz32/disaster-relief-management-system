@@ -13,12 +13,7 @@ try {
     $setup = scalar('SELECT COUNT(*) FROM users') === 0.0;
 } catch (Throwable $e) {
     error_log('[DRMS] ' . $e->getMessage());
-    $dbErr = match (true) {
-        $e instanceof RuntimeException => $e->getMessage(),
-        $e->getCode() === 1045 => 'MySQL refused the user name / password in config.php.',
-        $e->getCode() === 2002 => 'Cannot reach MySQL - is WampServer running (green icon)?',
-        default => 'Cannot open the database. Details are in the PHP error log.',
-    };
+    $dbErr = database_error_message($e);
 }
 
 if ($dbErr === '' && logged_in()) {

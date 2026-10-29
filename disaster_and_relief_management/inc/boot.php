@@ -48,6 +48,20 @@ function h(mixed $s): string
     return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function database_error_message(Throwable $e): string
+{
+    if ($e instanceof mysqli_sql_exception) {
+        return match ($e->getCode()) {
+            1045 => 'MySQL refused the user name / password in config.php.',
+            2002, 2003 => 'MySQL is unavailable. Start it using start_server.bat or WampServer, then reload this page.',
+            default => 'Cannot open the database. Details are in the PHP error log.',
+        };
+    }
+    return $e instanceof RuntimeException
+        ? $e->getMessage()
+        : 'Cannot open the database. Details are in the PHP error log.';
+}
+
 /** True when the session belongs to an existing user. Role and name are re-read from the database once per request. */
 function logged_in(): bool
 {

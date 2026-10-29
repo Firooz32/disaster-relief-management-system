@@ -25,6 +25,12 @@ function check(string $name, bool $ok): void
 
 ensure_installed();
 
+check('database connection errors show safe actionable guidance', database_error_message(new mysqli_sql_exception(
+    'No connection could be made because the target machine actively refused it', 2002
+)) === 'MySQL is unavailable. Start it using start_server.bat or WampServer, then reload this page.'
+    && database_error_message(new mysqli_sql_exception('Access denied', 1045)) === 'MySQL refused the user name / password in config.php.'
+    && database_error_message(new RuntimeException('The database is incomplete.')) === 'The database is incomplete.');
+
 // installation
 check('all ' . count(EXPECTED_TABLES) . ' tables exist', !array_diff(EXPECTED_TABLES, tables_of(db())));
 check('incident response-task table is installed and searchable', in_array('incident_task', all_tables(), true)

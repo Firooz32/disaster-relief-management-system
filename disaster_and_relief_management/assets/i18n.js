@@ -493,6 +493,7 @@
     'worth a look. Nothing here is changed automatically.': 'পর্যালোচনা করা উচিত। এখানে কিছুই স্বয়ংক্রিয়ভাবে পরিবর্তন হয় না।',
     '... and ': '... এবং ',
     'MySQL refused the user name / password in config.php.': 'config.php-এ দেওয়া MySQL ব্যবহারকারীর নাম বা পাসওয়ার্ড গ্রহণ করা হয়নি।',
+    'MySQL is unavailable. Start it using start_server.bat or WampServer, then reload this page.': 'MySQL চালু নেই। start_server.bat বা WampServer দিয়ে চালু করে পৃষ্ঠাটি আবার লোড করুন।',
     'Cannot reach MySQL - is WampServer running (green icon)?': 'MySQL-এ সংযোগ করা যাচ্ছে না - WampServer কি চালু আছে (সবুজ আইকন)?',
     'Cannot open the database. Details are in the PHP error log.': 'ডেটাবেস খোলা যাচ্ছে না। বিস্তারিত PHP error log-এ আছে।',
     'Only an administrator can open that page.': 'শুধু প্রশাসক এই পৃষ্ঠা খুলতে পারবেন।',
