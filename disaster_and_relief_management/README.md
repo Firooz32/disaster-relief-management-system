@@ -3,11 +3,10 @@
 # Disaster Mapping & Relief Management System
 
 A PHP + MySQL web application for recording disasters and their effects, sheltering affected families, handing out relief,
-and watching the situation on one **Live Report** that refreshes itself every 5 seconds. The interface can be switched
-between English and Bangla, with the choice remembered in the current browser.
+and watching the situation on one **Live Report** that refreshes itself every 5 seconds.
 Built for WampServer; no framework, no build step, no Composer.
 
-* 25 database tables (24 shown in the app), 8 integrity triggers, CHECK constraints and foreign keys with deliberate `ON DELETE` rules
+* 23 database tables (22 shown in the app), 8 integrity triggers, CHECK constraints and foreign keys with deliberate `ON DELETE` rules
 * Role-based login (admin / editor / viewer), audit log with before/after values and record confirmations, CSRF protection, Content-Security-Policy
 * Automated smoke checks (`php tests/smoke.php`)
 
@@ -15,7 +14,8 @@ Built for WampServer; no framework, no build step, no Composer.
 
 ## 1. Quick start
 
-**With WampServer**
+**With WampServer**finish running tasks
+
 
 1. Start WampServer (icon green).
 2. Copy the whole `disaster_and_relief_management` folder into `C:\wamp64\www\`.
@@ -129,17 +129,12 @@ A signed-in session ends after 4 hours without a click; the Live Report's automa
 | **Data Health** | 17 database checks that find records that contradict each other or are incomplete (see 3.4) |
 | **Disaster Report** | One printable situation report per disaster: signals, areas, warnings, path, damage, shelters, organisations, relief given, **relief coverage by area**, affected families |
 | **Response tasks** | Incident-linked tasks with an assigned DRMS user, due date, progress status and change history; overdue work appears in Needs attention |
-| **Field updates** | Editors record online situation, shelter, medical, supplies or safety observations against an incident and affected area; each entry is time-stamped and attributed |
 | **Shelter readiness** | Record services and accessibility notes; editors can confirm capacity/readiness, with the verification time and reviewer recorded. Active-incident shelters not checked in the last 7 days are flagged |
-| **Inventory & stock** | Record receipts as append-only batches, including source, location and expiry; dispatches select the correct batch and available stock is reconciled against the item totals |
-| **Map** | Risk-coloured area circles and shelter-capacity markers, overlaid with observed and forecast paths for live incidents |
+| **Map** | All areas (risk-coloured circles) and shelters (green / orange / red by fill level) |
 | **Search** | One box that searches every table, including readable names from linked records; autocomplete suggestions on each table page |
-| **Table pages** (24) | Sort, search linked records, paginate, **CSV export**, review record confirmation status, add / edit / delete. Shelter rows have a dedicated **Confirm capacity** action. Relief item totals are managed through Inventory & stock; batch records and field updates are append-only. Delete shows what else would disappear or what blocks it |
+| **Table pages** (22) | Sort, search linked records, paginate, **CSV export**, review record confirmation status, add / edit / delete. Shelter rows have a dedicated **Confirm capacity** action. Delete shows what else would disappear or what blocks it |
 | **Users** (admin) | Accounts and roles |
 | **Audit Log** | Who added / edited / deleted what, with the old and new values (read-only) |
-
-Use the **বাংলা / English** button in the header or sign-in screen to switch the interface language. The preference is
-stored in that browser. User-entered record contents and the embedded third-party Live Weather experience are not translated.
 
 ### 3.1 Live Report
 
@@ -161,8 +156,6 @@ To change what the panels show, edit data in the table pages: *Early Warning* (S
 
 On the Dashboard, editors and administrators can acknowledge and assign each current alert to an administrator or editor. The
 acknowledgement and owner are retained in the audit log; the alert remains visible until its underlying condition is fixed.
-Live incidents with a latest signal of 8 or higher also generate an actionable severe-warning alert. Alerts are in-app only; no
-email or SMS service is contacted.
 
 ### 3.5 Incident lifecycle
 
@@ -181,17 +174,16 @@ experience. Use the **Open Live Weather in a new tab** link if the embedded page
 is unavailable or inconvenient on your device. This feature requires an internet connection and relies on Ventusky's
 availability and embedding behavior.
 
-### 3.3 Database (25 tables)
+### 3.3 Database (22 tables)
 
 Main tables: `disaster`, `area`, `affected_person` (a family; `Family_Size` people; home `Area_ID`), `shelter`, `rescue_org`, `relief_item`, `emergency_item`, `early_warning` (with `Signal_Level` 1-10), `damage`,
-`shelter_assignment` (who stayed where; empty `Check_Out` = staying now), `relief_distribution` (what was given where), `disaster_track` (path points), `incident_task`, `incident_update`, `relief_batch`, `audit_log`, `users`.
+`shelter_assignment` (who stayed where; empty `Check_Out` = staying now), `relief_distribution` (what was given where), `disaster_track` (path points), `audit_log`, `users`.
 Relationship tables: `disaster_area`, `disaster_shelter`, `disaster_affected_person`, `disaster_rescue_org`, `rescue_org_relief_item`, `affected_person_emergency_item`, `shelter_emergency_item`, `relief_recipient`.
 
 * Occupancy and remaining relief stock are **calculated**, never stored: stock left = `relief_item.Quantity` (received) - sum of distributions.
 * **Foreign keys** with chosen rules (CASCADE / SET NULL / RESTRICT), **CHECK constraints** (capacity > 0, coordinates in range, signal 1-10, check-out not before check-in, quantities >= 0 ...).
 * **Triggers** (`inc/triggers.sql`, 8): a stay or a distribution must use a shelter that belongs to that disaster, a distribution's organisation must belong to it, a relief recipient and a stay's person must be affected by that disaster, damage must be in an affected area. They also protect data changed in phpMyAdmin.
 * **Business rules** (`inc/rules.php`) with friendly messages: shelter capacity, one open stay per person, relief stock, organisation supplies the item.
-* **Field updates** are available on each disaster report. Updates are online-only, attributed to the signed-in editor, area-scoped to the incident, and retained as append-only records.
 
 ### 3.4 Data Health
 
