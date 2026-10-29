@@ -1,7 +1,7 @@
 # TASKS - Disaster Mapping & Relief Management System
 
 Legend: `[x]` done and verified, `[ ]` not done. Plan and decisions: `PLAN.md`.
-Overall status: **all tasks complete** (last verification: 25 Oct 2026).
+Original live-tracking release status: **complete** (last full verification: 25 Oct 2026). Follow-up improvements are in progress and remain local.
 
 ## Task 1 - Database changes and safe upgrade  `[x]`
 - [x] `early_warning.Signal_Level` (1-10) with CHECK
@@ -43,7 +43,7 @@ Overall status: **all tasks complete** (last verification: 25 Oct 2026).
 - [x] all four panels on `report.php`, fed by `report_data.php`; original report unchanged
 - [x] Dashboard "Live status" cards (signals, full shelters, relief shortages, data health)
 - [x] regression: every page and all 21 tables (list, add form, CSV export)
-- [x] smoke tests extended (81 checks)
+- [x] smoke tests extended (84 checks)
 - [x] README.md and README.txt rewritten; `create_db_user.sql`, `start_server.bat` updated
 
 ## Task 7 - Quality extras  `[x]`
@@ -86,7 +86,7 @@ Overall status: **all tasks complete** (last verification: 25 Oct 2026).
 ## Final state of the user's database
 - [x] 22 tables, 8 triggers, sample data of the final version
 - [x] the existing administrator account is present (restored from backup after a test run replaced the database; same password hash)
-- [x] `php tests/smoke.php` against it: 81 / 81 pass
+- [x] `php tests/smoke.php` against it: 84 / 84 pass
 - [x] temporary test databases, web servers and browser profiles removed
 
 ## Not done (optional future work)
@@ -94,4 +94,13 @@ Overall status: **all tasks complete** (last verification: 25 Oct 2026).
 - [ ] SMS / e-mail alerts when a signal reaches 8
 - [ ] Match `*_emergency_item` needs against relief supply
 - [ ] Import live cyclone tracks from a weather service
-- [ ] Bangla screens
+- [x] English/Bangla interface toggle (browser preference; entered record contents and embedded weather provider remain unchanged)
+
+## Follow-up improvement phases
+
+- [x] Phase 1 - backup/recovery tooling, record freshness, and mobile-navigation accessibility (previously linted and smoke-tested)
+- [x] Phase 2 - incident lifecycle, task ownership, alert acknowledgement, and shelter readiness (previously smoke-tested)
+- [x] Phase 3 - batch-based inventory and online field updates (upgraded and fresh-install smoke suites and the race-safety regression passed)
+- [x] Phase 4 - severe-signal dashboard alerts, active paths on the overview map, keyboard/live-region accessibility, and English/Bangla interface toggle
+
+The current schema has 25 expected tables. The ER diagram and Word guide above describe the original schema and need regeneration after the follow-up database changes are verified.

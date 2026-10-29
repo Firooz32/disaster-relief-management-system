@@ -32,5 +32,27 @@
       .bindPopup(popup(s.name, [s.area || '', 'Staying now: ' + s.occupied + ' / ' + s.capacity]));
     pts.push([s.lat, s.lng]);
   });
+  (data.paths || []).forEach(function (disaster) {
+    var actual = disaster.points.filter(function (p) { return p.type === 'Actual'; });
+    var forecast = disaster.points.filter(function (p) { return p.type === 'Forecast'; });
+    var ll = function (p) { return [p.lat, p.lng]; };
+    if (actual.length > 1) L.polyline(actual.map(ll), { color: '#c0392b', weight: 4 }).addTo(map);
+    if (forecast.length) {
+      var future = (actual.length ? [ll(actual[actual.length - 1])] : []).concat(forecast.map(ll));
+      L.polyline(future, { color: '#e67e22', weight: 4, dashArray: '8 8' }).addTo(map);
+    }
+    disaster.points.forEach(function (point, index) {
+      var current = index === disaster.current;
+      var isForecast = point.type === 'Forecast';
+      var detail = [disaster.type + ' #' + disaster.id, point.time, isForecast ? 'Forecast position' : 'Observed position',
+        'Impact radius: ' + point.radius + ' km'];
+      if (point.wind !== null) detail.push('Wind: ' + point.wind + ' km/h');
+      if (current) L.circle(ll(point), { radius: point.radius * 1000, color: '#c0392b', weight: 2, fillColor: '#c0392b', fillOpacity: 0.18 }).addTo(map);
+      L.circleMarker(ll(point), current ? { radius: 10, color: '#fff', weight: 3, fillColor: '#c0392b', fillOpacity: 1 }
+                                        : { radius: 5, color: isForecast ? '#e67e22' : '#c0392b', weight: 2, fillColor: isForecast ? '#fff' : '#c0392b', fillOpacity: 1 })
+        .addTo(map).bindPopup(popup(disaster.type + (current ? ' - current position' : ''), detail));
+      pts.push(ll(point));
+    });
+  });
   if (pts.length) map.fitBounds(pts, { padding: [30, 30] }); else map.setView([22.6, 89.5], 8);
 })();

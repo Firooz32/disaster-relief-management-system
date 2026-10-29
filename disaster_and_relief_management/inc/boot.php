@@ -158,8 +158,10 @@ function page_start(string $title, string $active = ''): void
 <title><?= h($title) ?> - Disaster &amp; Relief Management</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="stylesheet" href="assets/style.css?v=<?= (int) filemtime(__DIR__ . '/../assets/style.css') ?>">
+<script src="assets/i18n.js?v=<?= (int) filemtime(__DIR__ . '/../assets/i18n.js') ?>" defer></script>
 </head>
 <body class="app">
+<a class="skip-link" href="#mainContent">Skip to main content</a>
 <aside class="side" id="side">
   <a class="brand" href="dashboard.php"><img class="logo-img" src="assets/logo.png" width="40" height="40" alt=""><span>Disaster &amp; Relief<br><small>Management System</small></span></a>
   <nav>
@@ -169,6 +171,7 @@ function page_start(string $title, string $active = ''): void
     <a class="nav<?= $active === 'report' ? ' on' : '' ?>" href="report.php">Live Report</a>
     <a class="nav<?= $active === 'weather' ? ' on' : '' ?>" href="weather.php">Live Weather</a>
     <a class="nav<?= $active === 'health' ? ' on' : '' ?>" href="health.php">Data Health</a>
+    <a class="nav<?= $active === 'stock' ? ' on' : '' ?>" href="stock.php">Inventory &amp; stock</a>
     <?php if (is_admin()): ?><a class="nav<?= $active === 'users' ? ' on' : '' ?>" href="users.php">Users</a><?php endif; ?>
     <div class="nav-h">Main tables</div>
     <?php foreach ($main as $t): ?>
@@ -182,15 +185,16 @@ function page_start(string $title, string $active = ''): void
 </aside>
 <div class="main">
   <header class="top">
-    <button class="menu" id="menuBtn" type="button" aria-label="Menu">&#9776;</button>
+    <button class="menu" id="menuBtn" type="button" aria-label="Menu" aria-expanded="false" aria-controls="side">&#9776;</button>
     <h1><?= h($title) ?></h1>
     <form class="gsearch" method="get" action="search.php"><input type="search" name="q" placeholder="Search everything..." aria-label="Search all tables"></form>
     <div class="who">
+      <button class="btn btn-sm btn-ghost language-toggle" type="button" data-language-toggle aria-label="Switch to Bangla" title="Switch to Bangla">বাংলা</button>
       <a href="account.php" title="Change my password"><?= h($_SESSION['user'] ?? '') ?></a><span class="badge"><?= h(role()) ?></span>
       <form class="inline" method="post" action="logout.php"><input type="hidden" name="csrf" value="<?= h(csrf()) ?>"><button class="btn btn-sm btn-ghost" type="submit">Sign out</button></form>
     </div>
   </header>
-  <main class="content">
+  <main class="content" id="mainContent" tabindex="-1">
     <?php if ($fl): ?><div class="alert alert-<?= h($fl[0]) ?>"><?= h($fl[1]) ?></div><?php endif; ?>
 <?php
 }

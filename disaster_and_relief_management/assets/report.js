@@ -1,6 +1,7 @@
 // Live report: re-reads report_data.php every REFRESH_MS and redraws only when something changed.
 const REFRESH_MS = 5000;           // change this number to update faster / slower
 let last = '', busy = false;
+const tr = window.drmsTranslate || (value => value);
 const esc = s => String(s ?? '-').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = v => Number(v || 0).toLocaleString();
 function tbl(el, head, body, right = []) {
@@ -85,12 +86,12 @@ document.getElementById('spNear').addEventListener('change', function () {
   showSpace();
 });
 document.getElementById('spLocate').addEventListener('click', function () {
-  if (!navigator.geolocation) { alert('This browser cannot tell where you are. Choose an area instead.'); return; }
+  if (!navigator.geolocation) { alert(tr('This browser cannot tell where you are. Choose an area instead.')); return; }
   navigator.geolocation.getCurrentPosition(function (p) {
     document.getElementById('spNear').value = '';
     spFrom = { lat: p.coords.latitude, lng: p.coords.longitude, label: 'your location' };
     showSpace();
-  }, function () { alert('Your location could not be read (permission denied?). Choose an area instead.'); }, { timeout: 10000 });
+  }, function () { alert(tr('Your location could not be read (permission denied?). Choose an area instead.')); }, { timeout: 10000 });
 });
 document.getElementById('spOnly').addEventListener('change', showSpace);
 

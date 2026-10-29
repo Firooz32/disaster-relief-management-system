@@ -72,7 +72,7 @@ Delivery: `inc/upgrade.php` (in place) and `disaster_and_relief_management.sql` 
 
 ## 6. Quality gates (all must pass)
 
-* `php tests/smoke.php` - 81 checks, on an upgraded database, a fresh install, and with the limited MySQL user.
+* `php tests/smoke.php` - 84 checks, on an upgraded database, a fresh install, and with the limited MySQL user.
 * Upgraded database == fresh install == plain `mysql` client install.
 * Every page and all 21 table pages load in a real browser with no console error and no Content-Security-Policy violation; no sideways scrolling on a phone.
 * Security: no access without sign-in, CSRF, roles enforced on the server, SQL-injection and stored-XSS attempts harmless, lockout and idle timeout, private files not downloadable.

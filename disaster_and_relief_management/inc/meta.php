@@ -5,7 +5,15 @@ declare(strict_types=1);
 /** Never listed, searched or edited through the generic table pages (users has its own admin page). */
 const HIDDEN_TABLES = ['users'];
 /** Listed and searchable, but nobody can add / edit / delete rows by hand. */
-const READONLY_TABLES = ['audit_log'];
+const READONLY_TABLES = ['audit_log', 'incident_update', 'relief_batch'];
+/** Set by the application when an incident moves through its lifecycle. */
+const SYSTEM_MANAGED_COLUMNS = ['Status_Changed_At', 'Closed_At', 'Capacity_Verified_At', 'Capacity_Verified_By', 'Created_At', 'Updated_At'];
+
+function is_system_managed(string $table, string $column): bool
+{
+    return in_array($column, SYSTEM_MANAGED_COLUMNS, true)
+        || ($table === 'relief_item' && $column === 'Quantity');
+}
 
 /** Only an administrator may delete rows of these tables (deleting a disaster removes everything recorded under it). */
 const ADMIN_DELETE_TABLES = ['disaster'];
@@ -177,6 +185,19 @@ function fk_options(string $rt, string $rc): ?array
     }
     if (scalar("SELECT COUNT(*) FROM `$rt`") > FK_DROPDOWN_MAX) {
         return $cache[$k] = null;
+    }
+    if ($rt === 'relief_batch' && $rc === 'Batch_ID') {
+        $out = [];
+        foreach (rows(
+            "SELECT b.Batch_ID AS v,
+                    CONCAT(b.Batch_Code, ' - ', i.Item_Name, ' (', b.Quantity_Received -
+                      (SELECT COALESCE(SUM(d.Quantity), 0) FROM relief_distribution d WHERE d.Batch_ID = b.Batch_ID),
+                      ' available; expires ', COALESCE(b.Expiry_Date, 'not recorded'), ')') AS l
+               FROM relief_batch b JOIN relief_item i ON i.Relief_ID = b.Relief_ID ORDER BY b.Batch_ID"
+        ) as $r) {
+            $out[(string) $r['v']] = (string) $r['l'];
+        }
+        return $cache[$k] = $out;
     }
     $name = null;
     $date = null;

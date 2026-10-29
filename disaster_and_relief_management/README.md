@@ -3,12 +3,13 @@
 # Disaster Mapping & Relief Management System
 
 A PHP + MySQL web application for recording disasters and their effects, sheltering affected families, handing out relief,
-and watching the situation on one **Live Report** that refreshes itself every 5 seconds.
+and watching the situation on one **Live Report** that refreshes itself every 5 seconds. The interface can be switched
+between English and Bangla, with the choice remembered in the current browser.
 Built for WampServer; no framework, no build step, no Composer.
 
-* 22 database tables (21 shown in the app), 8 integrity triggers, CHECK constraints and foreign keys with deliberate `ON DELETE` rules
-* Role-based login (admin / editor / viewer), audit log with before/after values, CSRF protection, Content-Security-Policy
-* 81 automated smoke checks (`php tests/smoke.php`)
+* 25 database tables (24 shown in the app), 8 integrity triggers, CHECK constraints and foreign keys with deliberate `ON DELETE` rules
+* Role-based login (admin / editor / viewer), audit log with before/after values and record confirmations, CSRF protection, Content-Security-Policy
+* Automated smoke checks (`php tests/smoke.php`)
 
 ---
 
@@ -25,9 +26,53 @@ Built for WampServer; no framework, no build step, no Composer.
 **One click (`start_localhost.bat`, in the folder above this one)** - starts MySQL and Apache without administrator rights, links the project into `C:\wamp64\www\` if needed and opens <http://localhost/disaster_and_relief_management/>. `stop_localhost.bat` stops them again.
 
 **Without Apache (`start_server.bat`)** - starts WampServer's MySQL and PHP's built-in server on <http://127.0.0.1:8099/> and opens the browser.
-Edit the three paths at the top of the file if your WampServer versions differ. `router.php` keeps private files (config, SQL dump, `inc/`, `tests/`) unreachable on this server.
+Edit the three paths at the top of the file if your WampServer versions differ. `router.php` keeps private files (config, SQL dump, PowerShell tools, `inc/`, `tests/`) unreachable on this server.
 
 Requirements: PHP 8.1 or newer with `mysqli` and `mbstring` (tested on PHP 8.2), MySQL 8.0.16 or newer (CHECK constraints and triggers; tested on 8.2), internet access for the map tiles (Leaflet / OpenStreetMap) and Ventusky Live Weather.
+
+### Database backup and restore
+
+Run a manual backup from this folder:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\backup_database.ps1 -Mode Backup
+```
+
+The script reads the database name, host, user and port from `config.php`, prompts for the MySQL password without echoing it,
+and creates a timestamped SQL backup under `Documents\DRMS-Backups` by default. Pass `-BackupDirectory "E:\DRMS-Backups"` to
+choose another destination. It includes table data, triggers, routines,
+events and binary columns. The temporary MySQL credential file is restricted to the current Windows user and removed after
+the operation. Store backup files on a separate, access-controlled drive and protect them as sensitive data; they contain
+personal records. The script refuses to overwrite an existing backup.
+
+For unattended backups, configure a MySQL login path once from the same Windows account that will own the scheduled task
+(use that MySQL installation's `mysql_config_editor.exe`; it stores credentials in the Windows user's MySQL login-path file):
+
+```powershell
+& "C:\wamp64\bin\mysql\mysql8.2.0\bin\mysql_config_editor.exe" set --login-path=drms-backup --host=127.0.0.1 --port=3306 --user=drms_backup --password
+```
+
+Use an authorized backup account with read access plus the privileges needed to dump views, triggers and events. Then create a
+Windows Task Scheduler task that runs under the same Windows account, starts after MySQL, and executes:
+
+```text
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\wamp64\www\disaster_and_relief_management\backup_database.ps1" -Mode Backup -LoginPath drms-backup -BackupDirectory "E:\DRMS-Backups"
+```
+
+Set a schedule appropriate to operations and alert on task failures. MySQL login paths are obfuscated by the MySQL tool, not
+a substitute for protecting the Windows account. Backups are plain SQL files; keep the target on encrypted, access-controlled
+storage and retain copies separately from the PC.
+
+To restore a backup, first copy it to a safe location and verify that it is the intended file. Restore replaces tables in the
+configured database and requires a MySQL account with the necessary `DROP`, `CREATE`, `ALTER`, `INSERT` and trigger privileges:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\backup_database.ps1 -Mode Restore -BackupPath "C:\path\to\backup.sql" -MysqlUser root
+```
+
+The restore asks for the exact database name before proceeding. Take a fresh backup before restoring, and test recovery against
+a separate database before relying on backups for real operations. Keep the application database account least-privileged;
+use an authorized administrative account only for backup/restore work when needed.
 
 ## Share your local server
 
@@ -63,8 +108,8 @@ Stop the tunnel with **Ctrl+C** in its terminal; stop WampServer with `..\stop_l
 
 | Role | Can do |
 |---|---|
-| **admin** | Everything: all tables, delete disasters, the *Users* page (add users, change roles, reset passwords, delete users) |
-| **editor** | View everything, add / edit / delete records (but not delete a **disaster**, which removes everything recorded under it) |
+| **admin** | Everything: all tables, delete disasters, the *Users* page (add users, change roles, reset passwords, delete users), reopen closed incidents, and acknowledge/assign alerts |
+| **editor** | View everything, add / edit / delete records, confirm records are current, and acknowledge/assign alerts (but not delete a **disaster**, which removes everything recorded under it) |
 | **viewer** | Read-only, search, CSV export |
 
 Five wrong passwords lock an account for 5 minutes (a fresh set of attempts starts after the lock). Every user can change their own password by clicking their name (top right).
@@ -83,11 +128,18 @@ A signed-in session ends after 4 hours without a click; the Live Report's automa
 | **Live Weather** | Khulna current weather, forecasts and interactive Ventusky map; use its search to change location |
 | **Data Health** | 17 database checks that find records that contradict each other or are incomplete (see 3.4) |
 | **Disaster Report** | One printable situation report per disaster: signals, areas, warnings, path, damage, shelters, organisations, relief given, **relief coverage by area**, affected families |
-| **Map** | All areas (risk-coloured circles) and shelters (green / orange / red by fill level) |
+| **Response tasks** | Incident-linked tasks with an assigned DRMS user, due date, progress status and change history; overdue work appears in Needs attention |
+| **Field updates** | Editors record online situation, shelter, medical, supplies or safety observations against an incident and affected area; each entry is time-stamped and attributed |
+| **Shelter readiness** | Record services and accessibility notes; editors can confirm capacity/readiness, with the verification time and reviewer recorded. Active-incident shelters not checked in the last 7 days are flagged |
+| **Inventory & stock** | Record receipts as append-only batches, including source, location and expiry; dispatches select the correct batch and available stock is reconciled against the item totals |
+| **Map** | Risk-coloured area circles and shelter-capacity markers, overlaid with observed and forecast paths for live incidents |
 | **Search** | One box that searches every table, including readable names from linked records; autocomplete suggestions on each table page |
-| **Table pages** (21) | Sort, search linked records, paginate, **CSV export**, add / edit / delete. Delete shows what else would disappear or what blocks it |
+| **Table pages** (24) | Sort, search linked records, paginate, **CSV export**, review record confirmation status, add / edit / delete. Shelter rows have a dedicated **Confirm capacity** action. Relief item totals are managed through Inventory & stock; batch records and field updates are append-only. Delete shows what else would disappear or what blocks it |
 | **Users** (admin) | Accounts and roles |
 | **Audit Log** | Who added / edited / deleted what, with the old and new values (read-only) |
+
+Use the **বাংলা / English** button in the header or sign-in screen to switch the interface language. The preference is
+stored in that browser. User-entered record contents and the embedded third-party Live Weather experience are not translated.
 
 ### 3.1 Live Report
 
@@ -105,7 +157,21 @@ All panels are fed by one JSON call, `report_data.php`, and redraw only when the
    Shortage = fewer than 80 % of the affected people reached **or** a coordinator set *Relief Shortage = Yes* on that disaster's area.
 5. The original cards, disaster-wise summary, risk bars, shelter and relief-item tables are unchanged below.
 
-To change what the panels show, edit data in the table pages: *Early Warning* (Signal Level), *Disaster* (Status Active / Ended), *Disaster Track* (path points), *Shelter Assignment* (check in / out), *Relief Distribution* + *Relief Recipient*, *Disaster Area* (Relief Shortage).
+To change what the panels show, edit data in the table pages: *Early Warning* (Signal Level), *Disaster* (incident lifecycle), *Disaster Track* (path points), *Shelter Assignment* (check in / out), *Relief Distribution* + *Relief Recipient*, *Disaster Area* (Relief Shortage).
+
+On the Dashboard, editors and administrators can acknowledge and assign each current alert to an administrator or editor. The
+acknowledgement and owner are retained in the audit log; the alert remains visible until its underlying condition is fixed.
+Live incidents with a latest signal of 8 or higher also generate an actionable severe-warning alert. Alerts are in-app only; no
+email or SMS service is contacted.
+
+### 3.5 Incident lifecycle
+
+Disasters move through **Reported → Active → Under control → Closed**. A reported incident can be activated; active incidents can
+be marked under control or closed; under-control incidents can return to active or be closed. Reopening a closed incident is
+restricted to administrators. Only Active and Under control incidents appear in live signals, paths, and relief status. Existing
+`Ended` records are migrated to `Closed` without deleting incident data. New records start as Reported. Assign an incident lead
+from the DRMS user list in the Disaster table. Status-change and close timestamps are recorded by the application; historical
+records retain null timestamps when the exact time was not available.
 
 ### 3.2 Live Weather
 
@@ -115,16 +181,17 @@ experience. Use the **Open Live Weather in a new tab** link if the embedded page
 is unavailable or inconvenient on your device. This feature requires an internet connection and relies on Ventusky's
 availability and embedding behavior.
 
-### 3.3 Database (22 tables)
+### 3.3 Database (25 tables)
 
 Main tables: `disaster`, `area`, `affected_person` (a family; `Family_Size` people; home `Area_ID`), `shelter`, `rescue_org`, `relief_item`, `emergency_item`, `early_warning` (with `Signal_Level` 1-10), `damage`,
-`shelter_assignment` (who stayed where; empty `Check_Out` = staying now), `relief_distribution` (what was given where), `disaster_track` (path points), `audit_log`, `users`.
+`shelter_assignment` (who stayed where; empty `Check_Out` = staying now), `relief_distribution` (what was given where), `disaster_track` (path points), `incident_task`, `incident_update`, `relief_batch`, `audit_log`, `users`.
 Relationship tables: `disaster_area`, `disaster_shelter`, `disaster_affected_person`, `disaster_rescue_org`, `rescue_org_relief_item`, `affected_person_emergency_item`, `shelter_emergency_item`, `relief_recipient`.
 
 * Occupancy and remaining relief stock are **calculated**, never stored: stock left = `relief_item.Quantity` (received) - sum of distributions.
 * **Foreign keys** with chosen rules (CASCADE / SET NULL / RESTRICT), **CHECK constraints** (capacity > 0, coordinates in range, signal 1-10, check-out not before check-in, quantities >= 0 ...).
 * **Triggers** (`inc/triggers.sql`, 8): a stay or a distribution must use a shelter that belongs to that disaster, a distribution's organisation must belong to it, a relief recipient and a stay's person must be affected by that disaster, damage must be in an affected area. They also protect data changed in phpMyAdmin.
 * **Business rules** (`inc/rules.php`) with friendly messages: shelter capacity, one open stay per person, relief stock, organisation supplies the item.
+* **Field updates** are available on each disaster report. Updates are online-only, attributed to the signed-in editor, area-scoped to the incident, and retained as append-only records.
 
 ### 3.4 Data Health
 
@@ -154,8 +221,8 @@ The dashboard shows the number of problems.
 php tests/smoke.php        # MySQL must be running; changes nothing permanent (writes are rolled back)
 ```
 
-81 checks: installation, foreign-key map, CSRF helper, CHECK constraints, the 7 trigger refusals, data consistency of the sample data, business rules,
-signal / space / relief / path calculations (including boundaries: signal 3|4|7|8, 80 % relief, radius edges), data-health detection, role permissions.
+Checks cover installation, foreign-key map, CSRF helper, CHECK constraints, trigger refusals, data consistency of the sample data, business rules,
+signal / space / relief / path calculations (including boundaries: signal 3|4|7|8, 80 % relief, radius edges), data-health detection, record verification, and role permissions.
 Use `DRMS_DB_NAME=<name>` to run against a copy.
 
 ```
@@ -172,6 +239,7 @@ every page and table in a real headless browser with no console or CSP errors, a
 ## 6. Upgrading and resetting
 
 * **From the previous 20-table version**: just open any page. A database that only lacks the new tables is upgraded **in place** (new columns, tables, triggers, plus sample rows only if the data is still the untouched sample). Existing rows and users are kept. The MySQL user in `config.php` needs ALTER / CREATE / TRIGGER rights for this one time (root is fine).
+* **Incident workflow update**: back up the database, then sign in once with a MySQL account that can ALTER the database. Existing `Ended` statuses are mapped to `Closed`; the schema is then ready for the four-stage workflow. Switch back to the least-privileged app account afterwards.
 * **Any other incomplete database** is never overwritten: you get a message instead. Back up what you need, drop the database in phpMyAdmin and reload.
 * **Start again from scratch**: drop `disaster_and_relief_management` in phpMyAdmin and reload the page (the admin account must then be created again).
 
@@ -191,7 +259,7 @@ every page and table in a real headless browser with no console or CSP errors, a
 
 ```
 index.php            sign-in / first-run          dashboard.php   dashboard             report.php + report_data.php + assets/report.js   Live Report
-weather.php          Ventusky live weather for Khulna
+weather.php          Ventusky live weather for Khulna        backup_database.ps1  manual backup and restore
 table.php            generic table pages          disaster.php    disaster report       health.php  data health
 assets/logo.png, logo.svg, logo-512.png   the logo (see below)
 map.php + assets/map.js   map                      search.php + api.php   search         users.php, account.php, logout.php

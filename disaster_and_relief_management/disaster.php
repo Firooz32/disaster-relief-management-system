@@ -3,28 +3,82 @@
 declare(strict_types=1);
 require __DIR__ . '/inc/boot.php';
 require __DIR__ . '/inc/stats.php';
+require __DIR__ . '/inc/rules.php';
 guard();
 
 $all = rows('SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster ORDER BY Disaster_Date DESC, Disaster_ID DESC');
 $id  = (int) ($_GET['id'] ?? ($all[0]['Disaster_ID'] ?? 0));
-$dis = row1('SELECT * FROM disaster WHERE Disaster_ID = ?', [$id]);
+$dis = row1('SELECT d.*, u.Username AS Incident_Lead FROM disaster d LEFT JOIN users u ON u.User_ID = d.Incident_Lead_ID WHERE d.Disaster_ID = ?', [$id]);
 if ($dis === null) {
     flash('err', 'That disaster was not found.');
     header('Location: dashboard.php');
     exit;
 }
 
-$areas = rows('SELECT a.Area_Name, a.Location, a.Risk_Level FROM disaster_area da JOIN area a ON a.Area_ID = da.Area_ID WHERE da.Disaster_ID = ? ORDER BY a.Area_Name', [$id]);
+$fieldError = '';
+$fieldValues = [];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['op'] ?? '') === 'field_update') {
+    if (!can_edit()) {
+        flash('err', 'Only an editor or administrator can submit a field update.');
+        header('Location: disaster.php?id=' . $id);
+        exit;
+    }
+    if (!csrf_ok()) {
+        flash('err', 'Session expired - please try again.');
+        header('Location: disaster.php?id=' . $id);
+        exit;
+    }
+    foreach (['Area_ID', 'Update_Type', 'Summary', 'Details', 'Observed_At'] as $field) {
+        $value = $_POST[$field] ?? '';
+        $fieldValues[$field] = is_string($value) ? trim($value) : '';
+    }
+    try {
+        db()->begin_transaction();
+        $fieldError = field_update_rules($id, $fieldValues) ?? '';
+        if ($fieldError !== '') {
+            db()->rollback();
+        } else {
+            $observed = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i', $fieldValues['Observed_At']);
+            if ($observed === false) {
+                throw new RuntimeException('The observation time is invalid.');
+            }
+            q('INSERT INTO incident_update (Disaster_ID, Area_ID, Update_Type, Summary, Details, Observed_At, Reported_By)
+               VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [$id, $fieldValues['Area_ID'] === '' ? null : (int) $fieldValues['Area_ID'], $fieldValues['Update_Type'],
+                 $fieldValues['Summary'], $fieldValues['Details'], $observed->format('Y-m-d H:i:s'), (int) $_SESSION['uid']]);
+            $updateId = (int) db()->insert_id;
+            audit('add', 'incident_update', 'Update_ID=' . $updateId, $fieldValues['Update_Type'] . ': ' . $fieldValues['Summary']);
+            db()->commit();
+            flash('ok', 'Field update recorded.');
+            header('Location: disaster.php?id=' . $id . '#field-updates');
+            exit;
+        }
+    } catch (mysqli_sql_exception $e) {
+        db()->rollback();
+        error_log('[DRMS] Field update failed: ' . $e->getMessage());
+        $fieldError = 'The field update could not be saved. Check the values and try again.';
+    } catch (RuntimeException $e) {
+        db()->rollback();
+        $fieldError = $e->getMessage();
+    }
+}
+
+$areas = rows('SELECT a.Area_ID, a.Area_Name, a.Location, a.Risk_Level FROM disaster_area da JOIN area a ON a.Area_ID = da.Area_ID WHERE da.Disaster_ID = ? ORDER BY a.Area_Name', [$id]);
+$fieldUpdates = rows('SELECT u.Update_Type, u.Summary, u.Details, u.Observed_At, a.Area_Name, reporter.Username AS Reported_By
+                        FROM incident_update u LEFT JOIN area a ON a.Area_ID = u.Area_ID
+                        JOIN users reporter ON reporter.User_ID = u.Reported_By
+                       WHERE u.Disaster_ID = ? ORDER BY u.Observed_At DESC, u.Update_ID DESC', [$id]);
 $warns = rows('SELECT Alert_Type, Signal_Level, Alert_DateTime, Message FROM early_warning WHERE Disaster_ID = ? ORDER BY Alert_DateTime', [$id]);
 $dmg   = rows('SELECT m.Damage_Type, a.Area_Name, m.Description, m.Quantity, m.Estimated_Loss FROM damage m LEFT JOIN area a ON a.Area_ID = m.Area_ID WHERE m.Disaster_ID = ? ORDER BY m.Estimated_Loss DESC', [$id]);
 $shel  = rows(
-    'SELECT s.Shelter_Name, a.Area_Name, s.Capacity,
+    'SELECT s.Shelter_Name, s.Services, s.Accessibility_Notes, s.Capacity, s.Capacity_Verified_At, verifier.Username AS Capacity_Verified_By, a.Area_Name,
             (SELECT COUNT(*) FROM shelter_assignment x WHERE x.Disaster_ID = ds.Disaster_ID AND x.Shelter_ID = s.Shelter_ID) AS families,
             CAST(COALESCE((SELECT SUM(p.Family_Size) FROM shelter_assignment x JOIN affected_person p ON p.Person_ID = x.Person_ID
                             WHERE x.Disaster_ID = ds.Disaster_ID AND x.Shelter_ID = s.Shelter_ID), 0) AS SIGNED) AS people,
             CAST(COALESCE((SELECT SUM(p.Family_Size) FROM shelter_assignment x JOIN affected_person p ON p.Person_ID = x.Person_ID
                             WHERE x.Disaster_ID = ds.Disaster_ID AND x.Shelter_ID = s.Shelter_ID AND x.Check_Out IS NULL), 0) AS SIGNED) AS now_here
        FROM disaster_shelter ds JOIN shelter s ON s.Shelter_ID = ds.Shelter_ID LEFT JOIN area a ON a.Area_ID = s.Area_ID
+       LEFT JOIN users verifier ON verifier.User_ID = s.Capacity_Verified_By
       WHERE ds.Disaster_ID = ? ORDER BY s.Shelter_Name', [$id]);
 $orgs  = rows('SELECT o.Org_Name, o.Org_Type, o.Contact FROM disaster_rescue_org r JOIN rescue_org o ON o.Org_ID = r.Org_ID WHERE r.Disaster_ID = ? ORDER BY o.Org_Name', [$id]);
 $relief = rows(
@@ -36,6 +90,13 @@ $people = rows(
        FROM disaster_affected_person dp JOIN affected_person p ON p.Person_ID = dp.Person_ID
        LEFT JOIN shelter_assignment x ON x.Disaster_ID = dp.Disaster_ID AND x.Person_ID = dp.Person_ID
        LEFT JOIN shelter s ON s.Shelter_ID = x.Shelter_ID WHERE dp.Disaster_ID = ? ORDER BY p.Name', [$id]);
+$tasks = rows(
+    'SELECT t.Task_Title, t.Details, t.Status, t.Due_At, assignee.Username AS Assigned_To, creator.Username AS Created_By, t.Updated_At
+       FROM incident_task t
+       LEFT JOIN users assignee ON assignee.User_ID = t.Assigned_To
+       JOIN users creator ON creator.User_ID = t.Created_By
+      WHERE t.Disaster_ID = ?
+      ORDER BY FIELD(t.Status, "Blocked", "In progress", "Open", "Done"), t.Due_At, t.Task_ID', [$id]);
 
 $latest   = null;                       // latest warning that has a signal number
 foreach ($warns as $w) {
@@ -74,7 +135,12 @@ page_start('Disaster report', 'disaster_report');
   <h2 class="big"><?= h($dis['Disaster_Type']) ?> - <?= h($dis['Disaster_Date']) ?> <span class="muted small">(<?= $days ?> days ago, report #<?= $id ?>)</span></h2>
   <p><?= h($dis['Description']) ?></p>
   <p><span class="badge"><?= h($dis['Status']) ?></span>
+     <?php if ($dis['Incident_Lead'] !== null): ?>Incident lead: <b><?= h($dis['Incident_Lead']) ?></b>.<?php else: ?>No incident lead assigned.<?php endif; ?>
      <?php if ($latest !== null): ?>Latest warning signal: <span class="sig sig-<?= h($latest['cls']) ?>">Signal <?= (int) $latest['level'] ?> - <?= h($latest['label']) ?></span><?php endif; ?></p>
+  <p class="muted small">
+    Status changed: <?= h($dis['Status_Changed_At'] ?? 'not recorded') ?>
+    <?php if ($dis['Status'] === 'Closed'): ?> | Closed: <?= h($dis['Closed_At'] ?? 'legacy close time not recorded') ?><?php endif; ?>
+  </p>
   <div class="cards tight">
     <div class="card stat"><div class="num"><?= count($areas) ?></div><div class="lbl">Areas hit</div></div>
     <div class="card stat"><div class="num"><?= count($people) ?></div><div class="lbl">Families affected</div></div>
@@ -100,7 +166,7 @@ page_start('Disaster report', 'disaster_report');
   <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Time</th><th>Type</th><th class="r">Latitude</th><th class="r">Longitude</th><th class="r">Impact radius (km)</th><th class="r">Wind (km/h)</th></tr></thead><tbody>
     <?php foreach ($track as $r): ?><tr><td><?= h($r['Point_Time']) ?></td><td><?= h($r['Point_Type']) ?></td><td class="r"><?= h($r['Latitude']) ?></td><td class="r"><?= h($r['Longitude']) ?></td><td class="r"><?= (int) $r['Radius_Km'] ?></td><td class="r"><?= h($r['Wind_Speed_Kmh'] ?? '-') ?></td></tr><?php endforeach; ?>
   </tbody></table></div>
-  <p class="muted small">Positions as recorded; the Live Report draws them on a map for Active disasters.</p></section>
+  <p class="muted small">Positions as recorded; the Live Report draws them on a map for Active and Under control incidents.</p></section>
 <?php endif; ?>
 
 <section class="panel"><?php section('Relief coverage by home area', $relief2 ? count($relief2['areas']) : 0); ?>
@@ -113,6 +179,69 @@ page_start('Disaster report', 'disaster_report');
   <?php else: ?><p class="muted">No family-level relief records exist for this disaster (add them in Relief Recipient).</p><?php endif; ?>
 </section>
 
+<section class="panel"><?php section('Response tasks', count($tasks)); ?>
+  <?php if ($tasks): ?>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Task</th><th>Status</th><th>Owner</th><th>Due</th><th>Last updated</th></tr></thead><tbody>
+      <?php foreach ($tasks as $task): ?>
+        <tr>
+          <td><b><?= h($task['Task_Title']) ?></b><?php if ($task['Details']): ?><br><span class="muted small"><?= h($task['Details']) ?></span><?php endif; ?></td>
+          <td><?= h($task['Status']) ?></td>
+          <td><?= h($task['Assigned_To'] ?? 'Unassigned') ?></td>
+          <td><?= h($task['Due_At'] ?? '-') ?></td>
+          <td><?= h($task['Updated_At']) ?></td>
+        </tr>
+      <?php endforeach; ?>
+    </tbody></table></div>
+  <?php else: ?><p class="muted">No response tasks have been recorded for this incident.</p><?php endif; ?>
+  <?php if (can_edit()): ?><p><a class="btn btn-sm btn-ghost" href="table.php?t=incident_task&amp;col=Disaster_ID&amp;q=<?= $id ?>">Manage response tasks</a></p><?php endif; ?>
+</section>
+
+<section class="panel" id="field-updates"><?php section('Field updates', count($fieldUpdates)); ?>
+  <?php if (can_edit()): ?>
+    <div class="field-update-entry noprint">
+      <h3>Record an update from the field</h3>
+      <p class="muted small">Online submission only. Do not enter sensitive personal details; updates are visible to signed-in users.</p>
+      <?php if ($fieldError !== ''): ?><div class="alert alert-err"><?= h($fieldError) ?></div><?php endif; ?>
+      <form method="post" action="disaster.php?id=<?= $id ?>#field-updates">
+        <input type="hidden" name="csrf" value="<?= h(csrf()) ?>">
+        <input type="hidden" name="op" value="field_update">
+        <div class="field-update-form">
+          <label class="fld"><span>Category <em>*</em></span>
+            <select name="Update_Type" required>
+              <?php foreach (['Situation', 'Shelter', 'Medical', 'Supplies', 'Safety'] as $type): ?>
+                <option value="<?= h($type) ?>"<?= ($fieldValues['Update_Type'] ?? 'Situation') === $type ? ' selected' : '' ?>><?= h($type) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </label>
+          <label class="fld"><span>Affected area</span>
+            <select name="Area_ID"><option value="">Not specified</option>
+              <?php foreach ($areas as $area): ?>
+                <option value="<?= (int) $area['Area_ID'] ?>"<?= (string) ($fieldValues['Area_ID'] ?? '') === (string) $area['Area_ID'] ? ' selected' : '' ?>><?= h($area['Area_Name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </label>
+          <label class="fld"><span>Observed at <em>*</em></span><input type="datetime-local" name="Observed_At" required value="<?= h($fieldValues['Observed_At'] ?? date('Y-m-d\TH:i')) ?>"></label>
+          <label class="fld wide"><span>Summary <em>*</em></span><input name="Summary" maxlength="160" required value="<?= h($fieldValues['Summary'] ?? '') ?>"></label>
+          <label class="fld wide"><span>Details <em>*</em></span><textarea name="Details" rows="4" maxlength="5000" required><?= h($fieldValues['Details'] ?? '') ?></textarea></label>
+        </div>
+        <div class="actions"><button class="btn btn-primary" type="submit">Submit field update</button></div>
+      </form>
+    </div>
+  <?php endif; ?>
+  <?php if ($fieldUpdates): ?>
+    <div class="field-update-list">
+      <?php foreach ($fieldUpdates as $update): ?>
+        <article class="field-update">
+          <div class="field-update-meta"><b><?= h($update['Update_Type']) ?></b><time><?= h($update['Observed_At']) ?></time></div>
+          <h3><?= h($update['Summary']) ?></h3>
+          <p><?= nl2br(h($update['Details'])) ?></p>
+          <div class="muted small"><?= h($update['Area_Name'] ?? 'Area not specified') ?> · Reported by <?= h($update['Reported_By']) ?></div>
+        </article>
+      <?php endforeach; ?>
+    </div>
+  <?php else: ?><p class="muted">No field updates have been recorded for this incident.</p><?php endif; ?>
+</section>
+
 <section class="panel"><?php section('Damage', count($dmg)); ?>
   <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Type</th><th>Area</th><th>Description</th><th class="r">Quantity</th><th class="r">Loss (Tk)</th></tr></thead><tbody>
     <?php foreach ($dmg as $r): ?><tr><td><?= h($r['Damage_Type']) ?></td><td><?= h($r['Area_Name'] ?? '-') ?></td><td><?= h($r['Description']) ?></td><td class="r"><?= number_format((int) $r['Quantity']) ?></td><td class="r"><?= number_format((float) $r['Estimated_Loss']) ?></td></tr><?php endforeach; ?>
@@ -120,8 +249,12 @@ page_start('Disaster report', 'disaster_report');
   </tbody></table></div></section>
 
 <section class="panel"><?php section('Shelters used', count($shel)); ?>
-  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Shelter</th><th>Area</th><th class="r">Capacity</th><th class="r">Families hosted</th><th class="r">People hosted</th><th class="r">Staying now</th></tr></thead><tbody>
-    <?php foreach ($shel as $r): ?><tr><td><?= h($r['Shelter_Name']) ?></td><td><?= h($r['Area_Name'] ?? '-') ?></td><td class="r"><?= number_format((int) $r['Capacity']) ?></td><td class="r"><?= (int) $r['families'] ?></td><td class="r"><?= (int) $r['people'] ?></td><td class="r"><?= (int) $r['now_here'] ?></td></tr><?php endforeach; ?>
+  <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Shelter / services</th><th>Area</th><th class="r">Capacity</th><th class="r">Families hosted</th><th class="r">People hosted</th><th class="r">Staying now</th><th>Capacity last confirmed</th></tr></thead><tbody>
+    <?php foreach ($shel as $r): ?><tr><td><b><?= h($r['Shelter_Name']) ?></b>
+      <?php if ($r['Services']): ?><br><span class="muted small">Services: <?= h($r['Services']) ?></span><?php endif; ?>
+      <?php if ($r['Accessibility_Notes']): ?><br><span class="muted small">Accessibility: <?= h($r['Accessibility_Notes']) ?></span><?php endif; ?>
+    </td><td><?= h($r['Area_Name'] ?? '-') ?></td><td class="r"><?= number_format((int) $r['Capacity']) ?></td><td class="r"><?= (int) $r['families'] ?></td><td class="r"><?= (int) $r['people'] ?></td><td class="r"><?= (int) $r['now_here'] ?></td>
+      <td><?= h($r['Capacity_Verified_At'] ?? 'Not confirmed') ?><?= $r['Capacity_Verified_By'] ? ' by ' . h($r['Capacity_Verified_By']) : '' ?></td></tr><?php endforeach; ?>
   </tbody></table></div></section>
 
 <div class="grid2 eq">

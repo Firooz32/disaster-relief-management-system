@@ -7,7 +7,7 @@ page_start('Live Report', 'report');
 ?>
 <div class="live">
   <span class="dot" id="dot"></span>
-  <b id="state">Connecting...</b>
+  <b id="state" role="status" aria-live="polite">Connecting...</b>
   <span class="muted" id="time"></span>
   <button class="btn btn-sm btn-ghost" type="button" id="refreshNow">Refresh now</button>
   <button class="btn btn-sm btn-ghost" type="button" id="printNow">Print</button>
@@ -20,7 +20,7 @@ page_start('Live Report', 'report');
     <label>Check my area:
       <select id="sigArea"><option value="">- choose an area -</option></select>
     </label>
-    <span id="sigAreaResult" class="sig-result muted">Pick an area to see its warning signal.</span>
+    <span id="sigAreaResult" class="sig-result muted" role="status" aria-live="polite">Pick an area to see its warning signal.</span>
   </div>
   <div class="tbl-wrap"><table class="tbl" id="tSig"></table></div>
 </section>
@@ -42,7 +42,7 @@ page_start('Live Report', 'report');
     <label><input type="checkbox" id="spOnly"> Only shelters with space</label>
     <label>Nearest to: <select id="spNear"><option value="">- not used -</option></select></label>
     <button class="btn btn-sm btn-ghost" type="button" id="spLocate">Use my location</button>
-    <span class="muted small" id="spCount"></span>
+    <span class="muted small" id="spCount" role="status" aria-live="polite"></span>
   </div>
   <div class="sig-cards" id="spCards"></div>
 </section>

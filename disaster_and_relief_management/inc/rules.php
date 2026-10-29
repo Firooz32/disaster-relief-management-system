@@ -6,6 +6,36 @@ class RuleViolation extends Exception
 {
 }
 
+function field_update_rules(int $disasterId, array $fields): ?string
+{
+    $type = trim((string) ($fields['Update_Type'] ?? ''));
+    $summary = trim((string) ($fields['Summary'] ?? ''));
+    $details = trim((string) ($fields['Details'] ?? ''));
+    $observedAt = trim((string) ($fields['Observed_At'] ?? ''));
+    $areaId = trim((string) ($fields['Area_ID'] ?? ''));
+
+    if (!in_array($type, ['Situation', 'Shelter', 'Medical', 'Supplies', 'Safety'], true)) {
+        return 'Choose a valid update category.';
+    }
+    if ($summary === '' || mb_strlen($summary) > 160) {
+        return 'Enter a short summary of up to 160 characters.';
+    }
+    if ($details === '' || mb_strlen($details) > 5000) {
+        return 'Enter field details of up to 5,000 characters.';
+    }
+    $observed = DateTimeImmutable::createFromFormat('!Y-m-d\TH:i', $observedAt);
+    $dateErrors = DateTimeImmutable::getLastErrors();
+    if ($observed === false || $observed->format('Y-m-d\TH:i') !== $observedAt
+        || ($dateErrors !== false && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0))) {
+        return 'Enter a valid observation date and time.';
+    }
+    if ($areaId !== '' && (!ctype_digit($areaId)
+        || row1('SELECT Area_ID FROM disaster_area WHERE Disaster_ID = ? AND Area_ID = ? FOR UPDATE', [$disasterId, (int) $areaId]) === null)) {
+        return 'Choose an area affected by this incident, or leave the area blank.';
+    }
+    return null;
+}
+
 /**
  * Locks the rows that limit a record, so two people saving at the same moment cannot both pass the capacity / stock check.
  * Call it inside a transaction, before check_rules(); the locks are released by commit / rollback.
@@ -18,6 +48,9 @@ function lock_for_rules(string $t, array $f): void
         q('SELECT Shelter_ID FROM shelter WHERE Shelter_ID = ? FOR UPDATE', [(int) ($f['Shelter_ID'] ?? 0)]);
     } elseif ($t === 'relief_distribution') {
         q('SELECT Relief_ID FROM relief_item WHERE Relief_ID = ? FOR UPDATE', [(int) ($f['Relief_ID'] ?? 0)]);
+        if ((int) ($f['Batch_ID'] ?? 0) > 0) {
+            q('SELECT Batch_ID FROM relief_batch WHERE Batch_ID = ? FOR UPDATE', [(int) $f['Batch_ID']]);
+        }
     }
 }
 
@@ -29,6 +62,37 @@ function lock_for_rules(string $t, array $f): void
 function check_rules(string $t, array $f, ?array $pk): ?string
 {
     $v = fn(string $k): string => trim((string) ($f[$k] ?? ''));
+
+    if ($t === 'disaster') {
+        $next = $v('Status');
+        if ($pk === null) {
+            return $next === 'Reported' ? null : 'New incidents must start in Reported status.';
+        }
+        $current = row1('SELECT Status FROM disaster WHERE Disaster_ID = ?', [(int) ($pk['Disaster_ID'] ?? 0)]);
+        if ($current === null) {
+            return 'That incident no longer exists.';
+        }
+        $from = (string) $current['Status'];
+        if ($next === $from) {
+            return null;
+        }
+        $allowed = [
+            'Reported' => ['Active'],
+            'Active' => ['Under control', 'Closed'],
+            'Under control' => ['Active', 'Closed'],
+            'Closed' => is_admin() ? ['Active'] : [],
+        ];
+        if (!in_array($next, $allowed[$from] ?? [], true)) {
+            return $from === 'Closed' ? 'Only an administrator can reopen a closed incident.' : 'That status transition is not allowed.';
+        }
+    }
+
+    if ($t === 'incident_task') {
+        $assigned = $v('Assigned_To');
+        if ($assigned !== '' && !scalar("SELECT COUNT(*) FROM users WHERE User_ID = ? AND Role IN ('admin','editor')", [(int) $assigned])) {
+            return 'Assign the task to an administrator or editor who can update its status.';
+        }
+    }
 
     if ($t === 'shelter_assignment') {
         $d = (int) $v('Disaster_ID');
@@ -67,6 +131,7 @@ function check_rules(string $t, array $f, ?array $pk): ?string
     if ($t === 'relief_distribution') {
         $d   = (int) $v('Disaster_ID');
         $r   = (int) $v('Relief_ID');
+        $batch = (int) $v('Batch_ID');
         $s   = (int) $v('Shelter_ID');
         $o   = (int) $v('Org_ID');
         $qty = (int) $v('Quantity');
@@ -85,6 +150,17 @@ function check_rules(string $t, array $f, ?array $pk): ?string
         if ($self > 0 && scalar('SELECT COUNT(*) FROM relief_recipient r WHERE r.Distribution_ID = ?
                                   AND NOT EXISTS (SELECT 1 FROM disaster_affected_person dp WHERE dp.Disaster_ID = ? AND dp.Person_ID = r.Person_ID)', [$self, $d])) {
             return 'Some families that received this distribution are not affected by that disaster. Fix "Relief Recipient" first.';
+        }
+        $batchRow = row1('SELECT Relief_ID, Quantity_Received, Expiry_Date FROM relief_batch WHERE Batch_ID = ?', [$batch]);
+        if ($batchRow === null || (int) $batchRow['Relief_ID'] !== $r) {
+            return 'Choose a stock batch for the selected relief item.';
+        }
+        if ($batchRow['Expiry_Date'] !== null && $batchRow['Expiry_Date'] < date('Y-m-d')) {
+            return 'This stock batch has expired and cannot be dispatched.';
+        }
+        $batchUsed = (int) scalar('SELECT COALESCE(SUM(Quantity), 0) FROM relief_distribution WHERE Batch_ID = ? AND Distribution_ID <> ?', [$batch, $self]);
+        if ($batchUsed + $qty > (int) $batchRow['Quantity_Received']) {
+            return 'Not enough stock in this batch: only ' . max(0, (int) $batchRow['Quantity_Received'] - $batchUsed) . " left, but $qty were entered.";
         }
         $stock = (int) scalar('SELECT Quantity FROM relief_item WHERE Relief_ID = ?', [$r]);
         $given = (int) scalar('SELECT COALESCE(SUM(Quantity), 0) FROM relief_distribution WHERE Relief_ID = ? AND Distribution_ID <> ?', [$r, $self]);

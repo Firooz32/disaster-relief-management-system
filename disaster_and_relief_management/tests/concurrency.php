@@ -70,7 +70,7 @@ function race(string $mode, array $people, int $disaster, int $shelter): array
 
 cleanup();
 $shelter  = (int) scalar("SELECT Shelter_ID FROM shelter WHERE Shelter_Name = 'Terokhada Primary School Shelter'");
-$disaster = (int) scalar("SELECT d.Disaster_ID FROM disaster d JOIN disaster_shelter ds ON ds.Disaster_ID = d.Disaster_ID WHERE ds.Shelter_ID = $shelter AND d.Status = 'Active' LIMIT 1");
+$disaster = (int) scalar("SELECT d.Disaster_ID FROM disaster d JOIN disaster_shelter ds ON ds.Disaster_ID = d.Disaster_ID WHERE ds.Shelter_ID = $shelter AND d.Status IN ('Active','Under control') LIMIT 1");
 if ($shelter === 0 || $disaster === 0) {
     echo "The sample shelter or its active disaster was not found - run this test on the sample data.\n";
     exit(2);

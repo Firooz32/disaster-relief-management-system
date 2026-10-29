@@ -438,8 +438,12 @@ CREATE TABLE IF NOT EXISTS `disaster` (
   `Disaster_Type` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `Disaster_Date` date NOT NULL,
   `Description` text COLLATE utf8mb4_unicode_ci,
-  `Status` enum('Active','Ended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Active',
-  PRIMARY KEY (`Disaster_ID`)
+  `Status` enum('Reported','Active','Under control','Closed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Reported',
+  `Incident_Lead_ID` int DEFAULT NULL,
+  `Status_Changed_At` datetime DEFAULT NULL,
+  `Closed_At` datetime DEFAULT NULL,
+  PRIMARY KEY (`Disaster_ID`),
+  KEY `fk_disaster_lead` (`Incident_Lead_ID`)
 ) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
@@ -447,17 +451,17 @@ CREATE TABLE IF NOT EXISTS `disaster` (
 --
 
 INSERT INTO `disaster` (`Disaster_ID`, `Disaster_Type`, `Disaster_Date`, `Description`, `Status`) VALUES
-(1, 'Flood', '2026-07-15', 'Severe flooding caused by heavy monsoon rainfall and river overflow.', 'Ended'),
-(2, 'Cyclone', '2026-05-28', 'A strong cyclone affected coastal areas with high winds and heavy rainfall.', 'Ended'),
-(3, 'River Erosion', '2026-08-10', 'Riverbank erosion damaged houses and agricultural land.', 'Ended'),
-(4, 'Tsunami', '2026-06-20', 'A tsunami caused coastal flooding and damage to infrastructure.', 'Ended'),
-(5, 'Flood', '2026-08-25', 'Flash flooding affected several villages after continuous heavy rainfall.', 'Ended'),
-(6, 'Cyclone', '2025-05-26', 'A severe cyclonic storm made landfall near the Sundarbans with 110 km/h winds and a 3 m storm surge.', 'Ended'),
-(7, 'Flood', '2025-08-14', 'Monsoon rivers crossed the danger level and flooded low-lying unions for nearly two weeks.', 'Ended'),
-(8, 'Waterlogging', '2025-09-20', 'Continuous heavy rain and blocked drainage kept town and village roads under knee-deep water.', 'Ended'),
-(9, 'Tidal Surge', '2025-10-22', 'A spring tide pushed 2 m above the normal level and overtopped weak coastal embankments.', 'Ended'),
-(10, 'River Erosion', '2025-12-08', 'Winter riverbank erosion swallowed homesteads, a market and farmland along the river.', 'Ended'),
-(11, 'Cyclone', '2026-09-18', 'A cyclone crossed the south-west coast overnight, damaging embankments, shrimp farms and power lines.', 'Ended'),
+(1, 'Flood', '2026-07-15', 'Severe flooding caused by heavy monsoon rainfall and river overflow.', 'Closed'),
+(2, 'Cyclone', '2026-05-28', 'A strong cyclone affected coastal areas with high winds and heavy rainfall.', 'Closed'),
+(3, 'River Erosion', '2026-08-10', 'Riverbank erosion damaged houses and agricultural land.', 'Closed'),
+(4, 'Tsunami', '2026-06-20', 'A tsunami caused coastal flooding and damage to infrastructure.', 'Closed'),
+(5, 'Flood', '2026-08-25', 'Flash flooding affected several villages after continuous heavy rainfall.', 'Closed'),
+(6, 'Cyclone', '2025-05-26', 'A severe cyclonic storm made landfall near the Sundarbans with 110 km/h winds and a 3 m storm surge.', 'Closed'),
+(7, 'Flood', '2025-08-14', 'Monsoon rivers crossed the danger level and flooded low-lying unions for nearly two weeks.', 'Closed'),
+(8, 'Waterlogging', '2025-09-20', 'Continuous heavy rain and blocked drainage kept town and village roads under knee-deep water.', 'Closed'),
+(9, 'Tidal Surge', '2025-10-22', 'A spring tide pushed 2 m above the normal level and overtopped weak coastal embankments.', 'Closed'),
+(10, 'River Erosion', '2025-12-08', 'Winter riverbank erosion swallowed homesteads, a market and farmland along the river.', 'Closed'),
+(11, 'Cyclone', '2026-09-18', 'A cyclone crossed the south-west coast overnight, damaging embankments, shrimp farms and power lines.', 'Closed'),
 (12, 'Flood', '2026-10-02', 'Late-season heavy rainfall and upstream water caused flash flooding in several unions.', 'Active'),
 (13, 'Cyclone', '2026-10-24', 'A severe cyclonic storm formed over the Bay of Bengal, crossed the coast near Koyra and is moving north over Dacope and Paikgachha towards Khulna city.', 'Active');
 
@@ -1012,6 +1016,37 @@ INSERT INTO `relief_item` (`Relief_ID`, `Item_Name`, `Category`, `Quantity`) VAL
 (16, 'Biscuits', 'Food', 1100);
 
 -- --------------------------------------------------------
+--
+-- Table structure for table `relief_batch`
+--
+
+DROP TABLE IF EXISTS `relief_batch`;
+CREATE TABLE IF NOT EXISTS `relief_batch` (
+  `Batch_ID` int NOT NULL AUTO_INCREMENT,
+  `Relief_ID` int NOT NULL,
+  `Batch_Code` varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `Quantity_Received` int NOT NULL,
+  `Received_At` date DEFAULT NULL,
+  `Expiry_Date` date DEFAULT NULL,
+  `Source` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `Storage_Location` varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `Notes` text COLLATE utf8mb4_unicode_ci,
+  `Received_By` int DEFAULT NULL,
+  `Created_At` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`Batch_ID`),
+  UNIQUE KEY `uq_relief_batch_code` (`Batch_Code`),
+  KEY `fk_batch_relief` (`Relief_ID`),
+  KEY `fk_batch_receiver` (`Received_By`),
+  KEY `ix_batch_expiry` (`Expiry_Date`),
+  CONSTRAINT `chk_batch_quantity` CHECK (`Quantity_Received` > 0),
+  CONSTRAINT `chk_batch_dates` CHECK (`Expiry_Date` IS NULL OR `Received_At` IS NULL OR `Expiry_Date` >= `Received_At`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `relief_batch` (`Relief_ID`, `Batch_Code`, `Quantity_Received`, `Source`)
+SELECT `Relief_ID`, CONCAT('LEGACY-', `Relief_ID`), `Quantity`, 'Imported opening stock; original receipt date unknown'
+  FROM `relief_item` WHERE `Quantity` > 0;
+
+-- --------------------------------------------------------
 
 --
 -- Table structure for table `rescue_org`
@@ -1138,9 +1173,14 @@ CREATE TABLE IF NOT EXISTS `shelter` (
   `Area_ID` int NOT NULL,
   `Latitude` decimal(9,6) DEFAULT NULL,
   `Longitude` decimal(9,6) DEFAULT NULL,
+  `Services` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `Accessibility_Notes` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `Capacity_Verified_At` datetime DEFAULT NULL,
+  `Capacity_Verified_By` int DEFAULT NULL,
   PRIMARY KEY (`Shelter_ID`),
   UNIQUE KEY `uq_shelter_name` (`Shelter_Name`),
   KEY `fk_shelter_area` (`Area_ID`),
+  KEY `fk_shelter_capacity_verifier` (`Capacity_Verified_By`),
   CONSTRAINT `chk_shelter_capacity` CHECK (`Capacity` > 0),
   CONSTRAINT `chk_shelter_lat` CHECK (`Latitude` BETWEEN -90 AND 90),
   CONSTRAINT `chk_shelter_lng` CHECK (`Longitude` BETWEEN -180 AND 180)
@@ -1420,6 +1460,7 @@ CREATE TABLE IF NOT EXISTS `relief_distribution` (
   `Distribution_ID` int NOT NULL AUTO_INCREMENT,
   `Disaster_ID` int NOT NULL,
   `Relief_ID` int NOT NULL,
+  `Batch_ID` int DEFAULT NULL,
   `Shelter_ID` int NOT NULL,
   `Org_ID` int DEFAULT NULL,
   `Quantity` int NOT NULL,
@@ -1427,6 +1468,7 @@ CREATE TABLE IF NOT EXISTS `relief_distribution` (
   PRIMARY KEY (`Distribution_ID`),
   KEY `fk_distribution_disaster` (`Disaster_ID`),
   KEY `fk_distribution_relief` (`Relief_ID`),
+  KEY `fk_distribution_batch` (`Batch_ID`),
   KEY `fk_distribution_shelter` (`Shelter_ID`),
   KEY `fk_distribution_org` (`Org_ID`),
   CONSTRAINT `chk_distribution_qty` CHECK (`Quantity` > 0)
@@ -1499,6 +1541,11 @@ INSERT INTO `relief_distribution` (`Distribution_ID`, `Disaster_ID`, `Relief_ID`
 (64, 13, 10, 21, 2, 60, '2026-10-24'),
 (65, 13, 3, 6, 7, 150, '2026-10-24'),
 (66, 13, 6, 5, 1, 30, '2026-10-24');
+
+UPDATE `relief_distribution` d
+JOIN `relief_batch` b ON b.`Relief_ID` = d.`Relief_ID` AND b.`Batch_Code` = CONCAT('LEGACY-', d.`Relief_ID`)
+SET d.`Batch_ID` = b.`Batch_ID`;
+ALTER TABLE `relief_distribution` MODIFY COLUMN `Batch_ID` int NOT NULL;
 
 -- --------------------------------------------------------
 
@@ -1600,6 +1647,57 @@ CREATE TABLE IF NOT EXISTS `users` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `incident_task`
+--
+
+DROP TABLE IF EXISTS `incident_task`;
+CREATE TABLE IF NOT EXISTS `incident_task` (
+  `Task_ID` int NOT NULL AUTO_INCREMENT,
+  `Disaster_ID` int NOT NULL,
+  `Task_Title` varchar(160) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `Details` text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `Assigned_To` int DEFAULT NULL,
+  `Due_At` datetime DEFAULT NULL,
+  `Status` enum('Open','In progress','Blocked','Done') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Open',
+  `Created_By` int NOT NULL,
+  `Created_At` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `Updated_At` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`Task_ID`),
+  KEY `fk_task_disaster` (`Disaster_ID`),
+  KEY `fk_task_assigned` (`Assigned_To`),
+  KEY `fk_task_creator` (`Created_By`),
+  KEY `ix_task_due_status` (`Status`, `Due_At`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `incident_update`
+--
+
+DROP TABLE IF EXISTS `incident_update`;
+CREATE TABLE IF NOT EXISTS `incident_update` (
+  `Update_ID` int NOT NULL AUTO_INCREMENT,
+  `Disaster_ID` int NOT NULL,
+  `Area_ID` int DEFAULT NULL,
+  `Update_Type` enum('Situation','Shelter','Medical','Supplies','Safety') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `Summary` varchar(160) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `Details` text COLLATE utf8mb4_unicode_ci NOT NULL,
+  `Observed_At` datetime NOT NULL,
+  `Reported_By` int NOT NULL,
+  `Created_At` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`Update_ID`),
+  KEY `ix_update_disaster_time` (`Disaster_ID`, `Observed_At`),
+  KEY `fk_update_area` (`Area_ID`),
+  KEY `fk_update_reporter` (`Reported_By`),
+  CONSTRAINT `fk_update_disaster` FOREIGN KEY (`Disaster_ID`) REFERENCES `disaster` (`Disaster_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_update_area` FOREIGN KEY (`Area_ID`) REFERENCES `area` (`Area_ID`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_update_reporter` FOREIGN KEY (`Reported_By`) REFERENCES `users` (`User_ID`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `audit_log` (who added / changed / deleted what; read-only in the web pages)
 --
 
@@ -1638,6 +1736,20 @@ ALTER TABLE `affected_person_emergency_item`
 ALTER TABLE `damage`
   ADD CONSTRAINT `fk_damage_area` FOREIGN KEY (`Area_ID`) REFERENCES `area` (`Area_ID`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_damage_disaster` FOREIGN KEY (`Disaster_ID`) REFERENCES `disaster` (`Disaster_ID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `disaster`
+--
+ALTER TABLE `disaster`
+  ADD CONSTRAINT `fk_disaster_lead` FOREIGN KEY (`Incident_Lead_ID`) REFERENCES `users` (`User_ID`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
+-- Constraints for table `incident_task`
+--
+ALTER TABLE `incident_task`
+  ADD CONSTRAINT `fk_task_disaster` FOREIGN KEY (`Disaster_ID`) REFERENCES `disaster` (`Disaster_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_task_assigned` FOREIGN KEY (`Assigned_To`) REFERENCES `users` (`User_ID`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_task_creator` FOREIGN KEY (`Created_By`) REFERENCES `users` (`User_ID`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 --
 -- Constraints for table `disaster_affected_person`
@@ -1683,10 +1795,18 @@ ALTER TABLE `early_warning`
 -- Constraints for table `relief_distribution`
 --
 ALTER TABLE `relief_distribution`
+  ADD CONSTRAINT `fk_distribution_batch` FOREIGN KEY (`Batch_ID`) REFERENCES `relief_batch` (`Batch_ID`) ON DELETE RESTRICT ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_distribution_disaster` FOREIGN KEY (`Disaster_ID`) REFERENCES `disaster` (`Disaster_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_distribution_org` FOREIGN KEY (`Org_ID`) REFERENCES `rescue_org` (`Org_ID`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_distribution_relief` FOREIGN KEY (`Relief_ID`) REFERENCES `relief_item` (`Relief_ID`) ON DELETE RESTRICT ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_distribution_shelter` FOREIGN KEY (`Shelter_ID`) REFERENCES `shelter` (`Shelter_ID`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+--
+-- Constraints for table `relief_batch`
+--
+ALTER TABLE `relief_batch`
+  ADD CONSTRAINT `fk_batch_relief` FOREIGN KEY (`Relief_ID`) REFERENCES `relief_item` (`Relief_ID`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_batch_receiver` FOREIGN KEY (`Received_By`) REFERENCES `users` (`User_ID`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Constraints for table `relief_recipient`
@@ -1714,7 +1834,8 @@ ALTER TABLE `rescue_org_relief_item`
 -- Constraints for table `shelter`
 --
 ALTER TABLE `shelter`
-  ADD CONSTRAINT `fk_shelter_area` FOREIGN KEY (`Area_ID`) REFERENCES `area` (`Area_ID`) ON DELETE RESTRICT ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_shelter_area` FOREIGN KEY (`Area_ID`) REFERENCES `area` (`Area_ID`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_shelter_capacity_verifier` FOREIGN KEY (`Capacity_Verified_By`) REFERENCES `users` (`User_ID`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Constraints for table `shelter_emergency_item`

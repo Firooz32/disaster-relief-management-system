@@ -6,7 +6,17 @@
 
   // mobile menu
   var mb = document.getElementById('menuBtn');
-  if (mb) mb.addEventListener('click', function () { document.body.classList.toggle('nav-open'); });
+  if (mb) {
+    function setMenuOpen(open) {
+      document.body.classList.toggle('nav-open', open);
+      mb.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    mb.addEventListener('click', function () { setMenuOpen(!document.body.classList.contains('nav-open')); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setMenuOpen(false); });
+    document.getElementById('side').addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('a')) setMenuOpen(false);
+    });
+  }
 
   // dictionary-style search suggestions
   var box = document.getElementById('q');

@@ -8,13 +8,15 @@
 declare(strict_types=1);
 
 const EXPECTED_TABLES = [
-    'affected_person', 'affected_person_emergency_item', 'area', 'audit_log', 'damage', 'disaster',
+    'affected_person', 'affected_person_emergency_item', 'area', 'audit_log', 'damage', 'disaster', 'incident_task', 'incident_update',
     'disaster_affected_person', 'disaster_area', 'disaster_rescue_org', 'disaster_shelter', 'disaster_track',
-    'early_warning', 'emergency_item', 'relief_distribution', 'relief_item', 'relief_recipient', 'rescue_org',
+    'early_warning', 'emergency_item', 'relief_batch', 'relief_distribution', 'relief_item', 'relief_recipient', 'rescue_org',
     'rescue_org_relief_item', 'shelter', 'shelter_assignment', 'shelter_emergency_item', 'users',
 ];
 /** Tables added after the 20-table version: a database missing only these is upgraded in place (inc/upgrade.php). */
 const UPGRADE_TABLES = ['disaster_track', 'relief_recipient'];
+/** Tables/columns added by idempotent upgrades after the first complete schema release. */
+const CURRENT_UPGRADE_TABLES = ['incident_task', 'incident_update', 'relief_batch'];
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -53,6 +55,20 @@ function tables_of(mysqli $c): array
     return $have;
 }
 
+function upgrade_current_schema_or_explain(): void
+{
+    require_once __DIR__ . '/inc/upgrade.php';
+    try {
+        upgrade_current_schema();
+    } catch (mysqli_sql_exception $e) {
+        if (in_array($e->getCode(), [1044, 1142], true)) {
+            throw new RuntimeException('The database needs a one-time incident workflow upgrade, but the MySQL user in config.php may not change tables. '
+                . 'Back up the database, put an authorized administrator in config.php, open this page once, then switch back.');
+        }
+        throw $e;
+    }
+}
+
 /**
  * Called by index.php and once per signed-in request. Creates the database and loads the SQL file when none of our tables exist,
  * and upgrades a database of the previous (20-table) version in place. Any other half-built database is never touched
@@ -69,11 +85,11 @@ function ensure_installed(): void
         $have = [];
     }
     $missing = array_diff(EXPECTED_TABLES, $have);
-    if (!$missing) {
-        return;
-    }
-    if (count($missing) < count(EXPECTED_TABLES) && !array_diff($missing, UPGRADE_TABLES)) {
-        upgrade_previous_version();
+    if (!$missing || (count($missing) < count(EXPECTED_TABLES) && !array_diff($missing, array_merge(UPGRADE_TABLES, CURRENT_UPGRADE_TABLES)))) {
+        if (array_intersect($missing, UPGRADE_TABLES)) {
+            upgrade_previous_version();
+        }
+        upgrade_current_schema_or_explain();
         return;
     }
     if (count($missing) < count(EXPECTED_TABLES)) {

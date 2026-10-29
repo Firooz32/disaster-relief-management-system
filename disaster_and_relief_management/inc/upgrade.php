@@ -28,6 +28,145 @@ function has_column(string $t, string $c): bool
     return scalar('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$t, $c]) > 0;
 }
 
+function column_type(string $t, string $c): string
+{
+    $row = row1('SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$t, $c]);
+    return (string) ($row['COLUMN_TYPE'] ?? '');
+}
+
+function column_nullable(string $t, string $c): bool
+{
+    $row = row1('SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$t, $c]);
+    return ($row['IS_NULLABLE'] ?? 'YES') === 'YES';
+}
+
+/** Idempotent schema updates for databases already on the current table version. */
+function upgrade_current_schema(): void
+{
+    if ((int) scalar("SELECT GET_LOCK('drms_incident_upgrade', 30)") !== 1) {
+        throw new RuntimeException('The incident workflow upgrade is busy; please reload the page.');
+    }
+    try {
+        if (!has_column('disaster', 'Incident_Lead_ID')) {
+            db()->query('ALTER TABLE disaster ADD COLUMN Incident_Lead_ID int DEFAULT NULL AFTER Status,
+                         ADD KEY fk_disaster_lead (Incident_Lead_ID),
+                         ADD CONSTRAINT fk_disaster_lead FOREIGN KEY (Incident_Lead_ID) REFERENCES users (User_ID) ON DELETE SET NULL ON UPDATE CASCADE');
+        }
+        if (!has_column('disaster', 'Status_Changed_At')) {
+            db()->query('ALTER TABLE disaster ADD COLUMN Status_Changed_At datetime DEFAULT NULL AFTER Incident_Lead_ID');
+        }
+        if (!has_column('disaster', 'Closed_At')) {
+            db()->query('ALTER TABLE disaster ADD COLUMN Closed_At datetime DEFAULT NULL AFTER Status_Changed_At');
+        }
+        if (!has_column('shelter', 'Services')) {
+            db()->query('ALTER TABLE shelter ADD COLUMN Services text COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER Longitude');
+        }
+        if (!has_column('shelter', 'Accessibility_Notes')) {
+            db()->query('ALTER TABLE shelter ADD COLUMN Accessibility_Notes text COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER Services');
+        }
+        if (!has_column('shelter', 'Capacity_Verified_At')) {
+            db()->query('ALTER TABLE shelter ADD COLUMN Capacity_Verified_At datetime DEFAULT NULL AFTER Accessibility_Notes');
+        }
+        if (!has_column('shelter', 'Capacity_Verified_By')) {
+            db()->query('ALTER TABLE shelter ADD COLUMN Capacity_Verified_By int DEFAULT NULL AFTER Capacity_Verified_At,
+                         ADD KEY fk_shelter_capacity_verifier (Capacity_Verified_By),
+                         ADD CONSTRAINT fk_shelter_capacity_verifier FOREIGN KEY (Capacity_Verified_By) REFERENCES users (User_ID) ON DELETE SET NULL ON UPDATE CASCADE');
+        }
+        db()->query("CREATE TABLE IF NOT EXISTS incident_task (
+            Task_ID int NOT NULL AUTO_INCREMENT,
+            Disaster_ID int NOT NULL,
+            Task_Title varchar(160) COLLATE utf8mb4_unicode_ci NOT NULL,
+            Details text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+            Assigned_To int DEFAULT NULL,
+            Due_At datetime DEFAULT NULL,
+            Status enum('Open','In progress','Blocked','Done') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Open',
+            Created_By int NOT NULL,
+            Created_At timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            Updated_At timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (Task_ID),
+            KEY fk_task_disaster (Disaster_ID),
+            KEY fk_task_assigned (Assigned_To),
+            KEY fk_task_creator (Created_By),
+            KEY ix_task_due_status (Status, Due_At),
+            CONSTRAINT fk_task_disaster FOREIGN KEY (Disaster_ID) REFERENCES disaster (Disaster_ID) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT fk_task_assigned FOREIGN KEY (Assigned_To) REFERENCES users (User_ID) ON DELETE SET NULL ON UPDATE CASCADE,
+            CONSTRAINT fk_task_creator FOREIGN KEY (Created_By) REFERENCES users (User_ID) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        db()->query("CREATE TABLE IF NOT EXISTS incident_update (
+            Update_ID int NOT NULL AUTO_INCREMENT,
+            Disaster_ID int NOT NULL,
+            Area_ID int DEFAULT NULL,
+            Update_Type enum('Situation','Shelter','Medical','Supplies','Safety') COLLATE utf8mb4_unicode_ci NOT NULL,
+            Summary varchar(160) COLLATE utf8mb4_unicode_ci NOT NULL,
+            Details text COLLATE utf8mb4_unicode_ci NOT NULL,
+            Observed_At datetime NOT NULL,
+            Reported_By int NOT NULL,
+            Created_At timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (Update_ID),
+            KEY ix_update_disaster_time (Disaster_ID, Observed_At),
+            KEY fk_update_area (Area_ID),
+            KEY fk_update_reporter (Reported_By),
+            CONSTRAINT fk_update_disaster FOREIGN KEY (Disaster_ID) REFERENCES disaster (Disaster_ID) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT fk_update_area FOREIGN KEY (Area_ID) REFERENCES area (Area_ID) ON DELETE SET NULL ON UPDATE CASCADE,
+            CONSTRAINT fk_update_reporter FOREIGN KEY (Reported_By) REFERENCES users (User_ID) ON DELETE RESTRICT ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        db()->query("CREATE TABLE IF NOT EXISTS relief_batch (
+            Batch_ID int NOT NULL AUTO_INCREMENT,
+            Relief_ID int NOT NULL,
+            Batch_Code varchar(80) COLLATE utf8mb4_unicode_ci NOT NULL,
+            Quantity_Received int NOT NULL,
+            Received_At date DEFAULT NULL,
+            Expiry_Date date DEFAULT NULL,
+            Source varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+            Storage_Location varchar(160) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+            Notes text COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+            Received_By int DEFAULT NULL,
+            Created_At timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (Batch_ID),
+            UNIQUE KEY uq_relief_batch_code (Batch_Code),
+            KEY fk_batch_relief (Relief_ID),
+            KEY fk_batch_receiver (Received_By),
+            KEY ix_batch_expiry (Expiry_Date),
+            CONSTRAINT chk_batch_quantity CHECK (Quantity_Received > 0),
+            CONSTRAINT chk_batch_dates CHECK (Expiry_Date IS NULL OR Received_At IS NULL OR Expiry_Date >= Received_At),
+            CONSTRAINT fk_batch_relief FOREIGN KEY (Relief_ID) REFERENCES relief_item (Relief_ID) ON DELETE RESTRICT ON UPDATE CASCADE,
+            CONSTRAINT fk_batch_receiver FOREIGN KEY (Received_By) REFERENCES users (User_ID) ON DELETE SET NULL ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        if (!has_column('relief_distribution', 'Batch_ID')) {
+            db()->query('ALTER TABLE relief_distribution ADD COLUMN Batch_ID int DEFAULT NULL AFTER Relief_ID,
+                         ADD KEY fk_distribution_batch (Batch_ID),
+                         ADD CONSTRAINT fk_distribution_batch FOREIGN KEY (Batch_ID) REFERENCES relief_batch (Batch_ID) ON DELETE RESTRICT ON UPDATE CASCADE');
+        }
+        db()->query("INSERT INTO relief_batch (Relief_ID, Batch_Code, Quantity_Received, Source)
+                     SELECT r.Relief_ID, CONCAT('LEGACY-', r.Relief_ID), r.Quantity, 'Imported opening stock; original receipt date unknown'
+                       FROM relief_item r
+                      WHERE r.Quantity > 0
+                        AND NOT EXISTS (SELECT 1 FROM relief_batch b WHERE b.Batch_Code = CONCAT('LEGACY-', r.Relief_ID))");
+        db()->query("UPDATE relief_distribution d JOIN relief_batch b
+                       ON b.Relief_ID = d.Relief_ID AND b.Batch_Code = CONCAT('LEGACY-', d.Relief_ID)
+                        SET d.Batch_ID = b.Batch_ID WHERE d.Batch_ID IS NULL");
+        if (scalar('SELECT COUNT(*) FROM relief_distribution WHERE Batch_ID IS NULL') > 0) {
+            throw new RuntimeException('Some existing relief distributions could not be linked to an opening stock batch; no records were deleted.');
+        }
+        if (column_nullable('relief_distribution', 'Batch_ID')) {
+            db()->query('ALTER TABLE relief_distribution MODIFY COLUMN Batch_ID int NOT NULL');
+        }
+
+        $statusType = column_type('disaster', 'Status');
+        if (stripos($statusType, "'Reported'") === false || stripos($statusType, "'Under control'") === false
+            || stripos($statusType, "'Closed'") === false || stripos($statusType, "'Ended'") !== false) {
+            $legacyStatus = stripos($statusType, "'Ended'") !== false;
+            db()->query("ALTER TABLE disaster MODIFY Status enum('Reported','Active','Under control','Closed','Ended') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Reported'");
+            if ($legacyStatus) {
+                db()->query("UPDATE disaster SET Status = 'Closed' WHERE Status = 'Ended'");
+            }
+            db()->query("ALTER TABLE disaster MODIFY Status enum('Reported','Active','Under control','Closed') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Reported'");
+        }
+    } finally {
+        db()->query("SELECT RELEASE_LOCK('drms_incident_upgrade')")->free();
+    }
+}
+
 /** True only for an untouched copy of the sample data, the only database that gets the new sample rows. */
 function is_sample_data(): bool
 {

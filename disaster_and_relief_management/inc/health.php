@@ -50,15 +50,15 @@ function health_checks(): array
         ['active_no_signal', 'warn', 'Active disaster without a warning signal',
          'No early warning with a Signal Level has been recorded, so the Live Report shows "No signal".', 'early_warning',
          "SELECT CONCAT(d.Disaster_Type, ' of ', d.Disaster_Date, ' (#', d.Disaster_ID, ')') FROM disaster d
-           WHERE d.Status = 'Active' AND NOT EXISTS (SELECT 1 FROM early_warning w WHERE w.Disaster_ID = d.Disaster_ID AND w.Signal_Level IS NOT NULL)"],
+           WHERE d.Status IN ('Active','Under control') AND NOT EXISTS (SELECT 1 FROM early_warning w WHERE w.Disaster_ID = d.Disaster_ID AND w.Signal_Level IS NOT NULL)"],
         ['active_no_area', 'warn', 'Active disaster with no affected area',
          'The disaster has no row in "Disaster Area", so no area can get its signal or relief status.', 'disaster_area',
          "SELECT CONCAT(d.Disaster_Type, ' of ', d.Disaster_Date, ' (#', d.Disaster_ID, ')') FROM disaster d
-           WHERE d.Status = 'Active' AND NOT EXISTS (SELECT 1 FROM disaster_area x WHERE x.Disaster_ID = d.Disaster_ID)"],
+           WHERE d.Status IN ('Active','Under control') AND NOT EXISTS (SELECT 1 FROM disaster_area x WHERE x.Disaster_ID = d.Disaster_ID)"],
         ['family_no_home', 'warn', 'Affected family of an active disaster without a home area',
          'Without a home area the family cannot be counted in the relief status of an area.', 'affected_person',
          "SELECT DISTINCT CONCAT(p.Name, ' (#', p.Person_ID, ')') FROM disaster_affected_person dp JOIN disaster d ON d.Disaster_ID = dp.Disaster_ID
-            JOIN affected_person p ON p.Person_ID = dp.Person_ID WHERE d.Status = 'Active' AND p.Area_ID IS NULL"],
+            JOIN affected_person p ON p.Person_ID = dp.Person_ID WHERE d.Status IN ('Active','Under control') AND p.Area_ID IS NULL"],
         ['no_coords', 'warn', 'Area or shelter without map coordinates',
          'Latitude / Longitude is empty, so it is missing from the maps and the disaster path.', 'area',
          "SELECT CONCAT('Area: ', Area_Name) FROM area WHERE Latitude IS NULL OR Longitude IS NULL
@@ -70,7 +70,7 @@ function health_checks(): array
         ['ended_open_stays', 'info', 'Families still in a shelter although the disaster has ended',
          'Normal for displaced families, but make sure each one still needs the place (add a Check Out date when they leave).', 'shelter_assignment',
          "SELECT CONCAT(p.Name, ' in shelter ', a.Shelter_ID, ' (disaster #', a.Disaster_ID, ')') FROM shelter_assignment a JOIN disaster d ON d.Disaster_ID = a.Disaster_ID
-            JOIN affected_person p ON p.Person_ID = a.Person_ID WHERE d.Status = 'Ended' AND a.Check_Out IS NULL"],
+            JOIN affected_person p ON p.Person_ID = a.Person_ID WHERE d.Status = 'Closed' AND a.Check_Out IS NULL"],
         ['long_stays', 'info', 'Families in a shelter for more than 30 days',
          'Long stays may need a longer-term solution.', 'shelter_assignment',
          "SELECT CONCAT(p.Name, ' since ', a.Check_In) FROM shelter_assignment a JOIN affected_person p ON p.Person_ID = a.Person_ID

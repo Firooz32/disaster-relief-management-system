@@ -21,6 +21,50 @@ $disasters = disaster_summary();
 $risk      = risk_summary();
 $shelters  = shelter_summary();
 $alerts    = alerts();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['op'] ?? '') === 'alert_ack') {
+    if (!csrf_ok()) {
+        flash('err', 'Session expired - please try again.');
+        header('Location: dashboard.php#alerts');
+        exit;
+    }
+    if (!can_edit()) {
+        flash('err', 'Only an editor or administrator can acknowledge or assign alerts.');
+        header('Location: dashboard.php#alerts');
+        exit;
+    }
+    $alertKey = is_string($_POST['alert_key'] ?? null) ? $_POST['alert_key'] : '';
+    $knownKeys = array_column($alerts, 3);
+    $ownerValue = $_POST['owner_id'] ?? '0';
+    $ownerId = is_scalar($ownerValue) && ctype_digit((string) $ownerValue) ? (int) $ownerValue : -1;
+    if (!in_array($alertKey, $knownKeys, true)) {
+        flash('err', 'That alert is no longer active; reload the dashboard.');
+        header('Location: dashboard.php#alerts');
+        exit;
+    }
+    if ($ownerId > 0 && !scalar("SELECT COUNT(*) FROM users WHERE User_ID = ? AND Role IN ('admin','editor')", [$ownerId])) {
+        flash('err', 'Choose an active administrator or editor as the alert owner.');
+        header('Location: dashboard.php#alerts');
+        exit;
+    }
+    audit('alert_ack', 'alert', $alertKey, 'owner_id=' . $ownerId);
+    flash('ok', 'Alert acknowledged and assigned.');
+    header('Location: dashboard.php#alerts');
+    exit;
+}
+$alertActions = [];
+if ($alerts) {
+    $alertKeys = array_column($alerts, 3);
+    $placeholders = implode(',', array_fill(0, count($alertKeys), '?'));
+    foreach (rows(
+        "SELECT a.Record_Key, a.User_Name, a.Created_At, a.Details FROM audit_log a
+         JOIN (SELECT Record_Key, MAX(Log_ID) AS Log_ID FROM audit_log
+                WHERE Table_Name = 'alert' AND Record_Key IN ($placeholders) GROUP BY Record_Key) latest ON latest.Log_ID = a.Log_ID",
+        $alertKeys
+    ) as $action) {
+        $alertActions[$action['Record_Key']] = $action;
+    }
+}
+$alertOwners = can_edit() ? rows("SELECT User_ID, Username FROM users WHERE Role IN ('admin','editor') ORDER BY Username") : [];
 $sigs      = signal_summary()['disasters'];
 $healthChecks = health_checks();
 $healthProblems = health_problem_count($healthChecks);
@@ -90,7 +134,8 @@ page_start('Dashboard', 'dashboard');
 </div>
 
 <section class="panel" id="liveSummary">
-  <h2>Live status <span class="muted small">(<a href="report.php">open the Live Report</a> for the map and details)</span></h2>
+  <h2>Live status <span class="muted small">(<a href="report.php">open the Live Report</a> for the map and details)</span>
+    <a class="btn btn-sm btn-ghost" href="stock.php">Manage inventory batches</a></h2>
   <div class="sig-cards">
     <div class="path-card" style="border-left-color:#0f6b8f;background:#fff">
       <h4 style="margin-top:0">Warning signals</h4>
@@ -125,11 +170,39 @@ page_start('Dashboard', 'dashboard');
 </section>
 
 <?php if ($alerts): ?>
-<section class="panel">
+<section class="panel" id="alerts">
   <h2>Needs attention <span class="muted small">(<?= count($alerts) ?>)</span></h2>
+  <p class="muted small">Editors and administrators can acknowledge and assign alerts. Alerts disappear automatically when the underlying issue is fixed.</p>
   <ul class="alerts">
-    <?php foreach ($alerts as [$lvl, $txt, $href]): ?>
-      <li class="lv-<?= h($lvl) ?>"><a href="<?= h($href) ?>"><?= h($txt) ?></a></li>
+    <?php foreach ($alerts as [$lvl, $txt, $href, $alertKey]):
+        $action = $alertActions[$alertKey] ?? null;
+        $assignedId = $action && preg_match('/(?:^|;)owner_id=(\d+)/', (string) $action['Details'], $m) ? (int) $m[1] : 0; ?>
+      <li class="lv-<?= h($lvl) ?>">
+        <a href="<?= h($href) ?>"><?= h($txt) ?></a>
+        <?php if ($action): ?>
+          <div class="small">Acknowledged by <?= h($action['User_Name']) ?> at <?= h($action['Created_At']) ?>
+            <?php if ($assignedId): $owner = current(array_filter($alertOwners, fn($u) => (int) $u['User_ID'] === $assignedId)); ?>
+              <?php if ($owner): ?> · Assigned to <?= h($owner['Username']) ?><?php endif; ?>
+            <?php endif; ?>
+          </div>
+        <?php else: ?><div class="small">Open · not yet acknowledged</div><?php endif; ?>
+        <?php if (can_edit()): ?>
+          <form method="post" class="inline alert-action-form">
+            <input type="hidden" name="csrf" value="<?= h(csrf()) ?>">
+            <input type="hidden" name="op" value="alert_ack">
+            <input type="hidden" name="alert_key" value="<?= h($alertKey) ?>">
+            <label class="small">Assign to
+              <select name="owner_id">
+                <option value="0">Unassigned</option>
+                <?php foreach ($alertOwners as $owner): ?>
+                  <option value="<?= (int) $owner['User_ID'] ?>"<?= (int) $owner['User_ID'] === $assignedId ? ' selected' : '' ?>><?= h($owner['Username']) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </label>
+            <button class="btn btn-sm btn-ghost" type="submit"><?= $action ? 'Update assignment' : 'Acknowledge &amp; assign' ?></button>
+          </form>
+        <?php endif; ?>
+      </li>
     <?php endforeach; ?>
   </ul>
 </section>

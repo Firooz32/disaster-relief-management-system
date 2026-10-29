@@ -139,6 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ' . $back);
         exit;
     }
+    if (!in_array($op, ['add', 'edit', 'delete', 'verify'], true)) {
+        flash('err', 'Unknown table action.');
+        header('Location: ' . $back);
+        exit;
+    }
     if (!$canWrite || ($op === 'delete' && !$canDelete)) {
         flash('err', $canWrite ? 'Only an administrator can delete records of ' . pretty($t) . '.' : 'Your account is read-only for this table.');
         header('Location: ' . $back);
@@ -147,7 +152,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $f = is_array($_POST['f'] ?? null) ? $_POST['f'] : [];
     try {
         db()->begin_transaction();            // check + write + audit entry succeed or fail together
-        lock_for_rules($t, $f);               // capacity / stock cannot be passed by two people at once
+        if ($op !== 'verify') {
+            lock_for_rules($t, $f);           // capacity / stock cannot be passed by two people at once
+        }
+        if ($op === 'verify') {
+            $pk = pk_from($_POST, $pks);
+            if ($pk === null) throw new RuntimeException('Record key is missing.');
+            [$w, $wv] = where_pk($pk);
+            if (!row1("SELECT 1 FROM $qt WHERE $w", $wv)) {
+                throw new RuntimeException('That record no longer exists; reload the table.');
+            }
+            $verificationDetails = 'Reviewed and confirmed current.';
+            if ($t === 'shelter') {
+                q('UPDATE shelter SET Capacity_Verified_At = CURRENT_TIMESTAMP, Capacity_Verified_By = ? WHERE Shelter_ID = ?', [(int) $_SESSION['uid'], (int) ($pk['Shelter_ID'] ?? 0)]);
+                $verificationDetails = 'Shelter capacity and operational details reviewed and confirmed current.';
+            }
+            audit('verify', $t, key_text($pk), $verificationDetails);
+            db()->commit();
+            flash('ok', $t === 'shelter' ? 'Shelter capacity and details marked as confirmed.' : pretty($t) . ' record marked as confirmed.');
+            header('Location: ' . $back);
+            exit;
+        }
         if ($op === 'add' || $op === 'edit') {
             $viol = check_rules($t, $f, $op === 'edit' ? pk_from($_POST, $pks) : null);   // capacity, stock and "belongs to this disaster" rules
             if ($viol !== null) {
@@ -158,7 +183,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $fields = [];
             $vals   = [];
             foreach ($cols as $c) {
-                if (is_auto($c)) continue;
+                if (is_auto($c) || is_system_managed($t, (string) $c['Field'])) continue;
+                if ($t === 'incident_task' && $c['Field'] === 'Created_By') {
+                    $fields[] = '`Created_By`';
+                    $vals[] = (int) $_SESSION['uid'];
+                    continue;
+                }
                 $raw = trim((string) ($f[$c['Field']] ?? ''));
                 if ($raw === '') continue;                     // let MySQL use the default / NULL
                 $fields[] = '`' . $c['Field'] . '`';
@@ -169,6 +199,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 : "INSERT INTO $qt () VALUES ()";
             q($sql, $vals);
             $newId = db()->insert_id;
+            if ($t === 'disaster' && $newId > 0) {
+                q('UPDATE disaster SET Status_Changed_At = CURRENT_TIMESTAMP WHERE Disaster_ID = ?', [$newId]);
+            }
             audit('add', $t, $newId ? "$pks[0]=$newId" : key_text(array_combine($pks, array_map(fn($p) => (string) ($f[$p] ?? ''), $pks))),
                   implode('; ', array_map(fn($fl, $v) => trim($fl, '`') . ' = ' . $v, $fields, $vals)));
             db()->commit();
@@ -182,17 +215,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sets = [];
             $vals = [];
             foreach ($cols as $c) {
-                if (is_auto($c)) continue;
+                if (is_auto($c) || is_system_managed($t, (string) $c['Field'])
+                    || ($t === 'incident_task' && $c['Field'] === 'Created_By')) continue;
                 $raw    = trim((string) ($f[$c['Field']] ?? ''));
                 $sets[] = '`' . $c['Field'] . '` = ?';
                 $vals[] = $raw === '' ? null : to_db($c, $raw);
             }
             [$w, $wv] = where_pk($pk);
             $before = row1("SELECT * FROM $qt WHERE $w", $wv) ?? [];
+            if ($t === 'disaster' && (string) ($before['Status'] ?? '') !== trim((string) ($f['Status'] ?? ''))) {
+                $sets[] = '`Status_Changed_At` = CURRENT_TIMESTAMP';
+                $sets[] = trim((string) ($f['Status'] ?? '')) === 'Closed' ? '`Closed_At` = CURRENT_TIMESTAMP' : '`Closed_At` = NULL';
+            }
             q("UPDATE $qt SET " . implode(', ', $sets) . " WHERE $w", array_merge($vals, $wv));
             $changes = [];
             foreach ($cols as $c) {
-                if (is_auto($c)) continue;
+                if (is_auto($c) || is_system_managed($t, (string) $c['Field'])
+                    || ($t === 'incident_task' && $c['Field'] === 'Created_By')) continue;
                 $fn  = (string) $c['Field'];
                 $new = trim((string) ($f[$fn] ?? ''));
                 $new = $new === '' ? null : to_db($c, $new);
@@ -327,7 +366,9 @@ if ($action === 'add' || $action === 'edit') {
         <?php endforeach; endif; ?>
         <?php foreach ($cols as $c):
             $fn  = (string) $c['Field'];
-            $val = $formVals !== null ? (string) ($formVals[$fn] ?? '') : ($editing ? to_form($c, $row[$fn]) : '');
+            if (is_system_managed($t, $fn) || ($t === 'incident_task' && $fn === 'Created_By')) continue;
+            $val = $formVals !== null ? (string) ($formVals[$fn] ?? '')
+                : ($editing ? to_form($c, $row[$fn]) : ($t === 'disaster' && $fn === 'Status' ? 'Reported' : ''));
             render_field($c, $val, $editing, $fks);
         endforeach; ?>
         <div class="actions">
@@ -430,6 +471,28 @@ $total = (int) (row1("SELECT COUNT(*) AS n FROM $qt$where", $params)['n'] ?? 0);
 $pages = max(1, (int) ceil($total / $per));
 $page  = min($pg, $pages);
 $data  = rows("SELECT * FROM $qt$where$order LIMIT " . $per . ' OFFSET ' . (($page - 1) * $per), $params);
+$verification = [];
+if ($t !== 'audit_log' && $data && $pks) {
+    $keys = [];
+    foreach ($data as $r) {
+        $pkq = [];
+        foreach ($pks as $p) {
+            $pkq[$p] = (string) $r[$p];
+        }
+        $keys[] = key_text($pkq);
+    }
+    $placeholders = implode(',', array_fill(0, count($keys), '?'));
+    $auditRows = rows(
+        "SELECT l.Record_Key, l.Action, l.User_Name, l.Created_At
+           FROM audit_log l
+           JOIN (SELECT Record_Key, MAX(Log_ID) AS Log_ID FROM audit_log
+                  WHERE Table_Name = ? AND Record_Key IN ($placeholders) GROUP BY Record_Key) latest ON latest.Log_ID = l.Log_ID",
+        array_merge([$t], $keys)
+    );
+    foreach ($auditRows as $r) {
+        $verification[(string) $r['Record_Key']] = $r;
+    }
+}
 
 page_start($title, $t);
 ?>
@@ -467,6 +530,7 @@ page_start($title, $t);
               $on = $fn === $sortCol; ?>
             <th><a class="sort" href="<?= h($url(['s' => $fn, 'd' => ($on && !$desc) ? 'desc' : '', 'p' => ''])) ?>"><?= h(str_replace('_', ' ', $fn)) ?><?= $on ? ($desc ? ' &#9660;' : ' &#9650;') : '' ?></a></th>
           <?php endforeach; ?>
+          <?php if ($t !== 'audit_log'): ?><th>Last confirmed</th><?php endif; ?>
           <?php if ($canWrite || $t === 'disaster'): ?><th class="r">Actions</th><?php endif; ?>
         </tr>
       </thead>
@@ -492,6 +556,27 @@ page_start($title, $t);
               $num = in_array(kind($c), ['int', 'decimal'], true) && !isset($fks[$fn]);
               echo '<td' . ($num ? ' class="r"' : '') . ' title="' . h((string) $v) . '"><span class="cell">' . h($txt) . '</span></td>';
           endforeach; ?>
+          <?php if ($t !== 'audit_log'):
+              $recordKey = key_text($pkq);
+              $lastRecordAction = $verification[$recordKey] ?? null;
+              $isConfirmed = $lastRecordAction && $lastRecordAction['Action'] === 'verify'; ?>
+          <td class="nowrap">
+            <?php if ($isConfirmed): ?>
+              <span class="sig sig-ok">Confirmed</span><br>
+              <span class="muted small"><?= h($lastRecordAction['Created_At']) ?> by <?= h($lastRecordAction['User_Name']) ?></span>
+            <?php else: ?>
+              <span class="sig sig-warn">Needs review</span>
+              <?php if ($lastRecordAction): ?><br><span class="muted small">Changed <?= h($lastRecordAction['Created_At']) ?></span><?php endif; ?>
+            <?php endif; ?>
+            <?php if ($canWrite): ?>
+              <form class="inline" method="post" action="<?= h($back) ?>">
+                <input type="hidden" name="csrf" value="<?= h(csrf()) ?>"><input type="hidden" name="op" value="verify">
+                <?php foreach ($pkq as $pkName => $pkValue): ?><input type="hidden" name="pk[<?= h($pkName) ?>]" value="<?= h($pkValue) ?>"><?php endforeach; ?>
+                <button class="btn btn-sm btn-ghost" type="submit"><?= $t === 'shelter' ? 'Confirm capacity' : 'Confirm current' ?></button>
+              </form>
+            <?php endif; ?>
+          </td>
+          <?php endif; ?>
           <?php if ($canWrite || $t === 'disaster'): ?>
           <td class="r nowrap">
             <?php if ($t === 'disaster'): ?><a class="btn btn-sm btn-ghost" href="disaster.php?id=<?= (int) $r['Disaster_ID'] ?>">Report</a><?php endif; ?>
@@ -504,7 +589,7 @@ page_start($title, $t);
         </tr>
       <?php endforeach; ?>
       <?php if (!$data): ?>
-        <tr><td colspan="<?= count($cols) + ($canWrite || $t === 'disaster' ? 1 : 0) ?>" class="muted center">No records found.</td></tr>
+        <tr><td colspan="<?= count($cols) + ($t !== 'audit_log' ? 1 : 0) + ($canWrite || $t === 'disaster' ? 1 : 0) ?>" class="muted center">No records found.</td></tr>
       <?php endif; ?>
       </tbody>
     </table>

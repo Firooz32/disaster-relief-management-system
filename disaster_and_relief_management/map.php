@@ -13,6 +13,7 @@ $areas = array_map(fn($a) => ['lat' => $num($a['lat']), 'lng' => $num($a['lng'])
        FROM area a ORDER BY a.Area_ID'
 ));
 $shelters = array_map(fn($s) => ['lat' => $num($s['lat']), 'lng' => $num($s['lng'])] + $s, shelter_summary());
+$paths = path_status();
 
 page_start('Map', 'map');
 ?>
@@ -21,6 +22,7 @@ page_start('Map', 'map');
   <div class="legend">
     <span><i style="background:#c0392b"></i> Very High risk</span><span><i style="background:#e67e22"></i> High</span>
     <span><i style="background:#f1c40f"></i> Medium</span><span><i style="background:#2a9d8f"></i> Low</span>
+    <span><i style="background:#c0392b"></i> Observed disaster path</span><span><i style="background:#e67e22"></i> Forecast path</span>
     <span class="muted">Circles = risk areas &nbsp; Dots = shelters (green &lt; 70% full, orange &lt; 90%, red 90%+)</span>
   </div>
   <div id="map"></div>
@@ -36,7 +38,7 @@ page_start('Map', 'map');
     </tbody></table></div></section>
 </div>
 <p class="muted small">Coordinates are stored in the <a href="table.php?t=area">Area</a> and <a href="table.php?t=shelter">Shelter</a> tables (Latitude / Longitude) - edit them there and refresh this page.</p>
-<script type="application/json" id="mapdata"><?= json_encode(['areas' => $areas, 'shelters' => $shelters], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR) ?></script>
+<script type="application/json" id="mapdata"><?= json_encode(['areas' => $areas, 'shelters' => $shelters, 'paths' => $paths], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_PARTIAL_OUTPUT_ON_ERROR) ?></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="assets/map.js"></script>
 <?php page_end(); ?>

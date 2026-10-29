@@ -8,7 +8,7 @@ declare(strict_types=1);
 
 $path = rawurldecode((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH));
 if (preg_match('#(^|/)(inc|tests)(/|$)#i', $path)
-    || preg_match('#\.(sql|txt|md|log|bak|ini)$#i', $path)
+    || preg_match('#\.(sql|txt|md|log|bak|ini|ps1)$#i', $path)
     || preg_match('#(^|/)(config|config\.sample|router|db)\.php$#i', $path)) {
     http_response_code(404);
     echo 'Not found';

@@ -92,6 +92,41 @@ function relief_summary(): array
     return $rs;
 }
 
+/** Received batches with their dispatch totals and remaining stock. */
+function stock_batches(): array
+{
+    return rows(
+        'SELECT b.Batch_ID, b.Relief_ID, b.Batch_Code, b.Quantity_Received, b.Received_At, b.Expiry_Date,
+                b.Source, b.Storage_Location, b.Notes, receiver.Username AS Received_By, i.Item_Name,
+                (SELECT COALESCE(SUM(d.Quantity), 0) FROM relief_distribution d WHERE d.Batch_ID = b.Batch_ID) AS Dispatched,
+                b.Quantity_Received - (SELECT COALESCE(SUM(d.Quantity), 0) FROM relief_distribution d WHERE d.Batch_ID = b.Batch_ID) AS Remaining
+           FROM relief_batch b JOIN relief_item i ON i.Relief_ID = b.Relief_ID
+           LEFT JOIN users receiver ON receiver.User_ID = b.Received_By
+          ORDER BY b.Expiry_Date IS NULL, b.Expiry_Date, b.Received_At, b.Batch_ID'
+    );
+}
+
+/** Recent receipts and dispatches combined into one chronological stock ledger. */
+function stock_movements(int $limit = 100): array
+{
+    $limit = max(1, min(500, $limit));
+    return rows(
+        "SELECT m.* FROM (
+            SELECT b.Received_At AS Movement_Date, 'Receipt' AS Movement_Type,
+                   i.Item_Name, b.Batch_Code, b.Quantity_Received AS Quantity, b.Source AS Destination, b.Received_By AS Recorded_By
+              FROM relief_batch b JOIN relief_item i ON i.Relief_ID = b.Relief_ID
+            UNION ALL
+            SELECT d.Distribution_Date AS Movement_Date, 'Dispatch' AS Movement_Type, i.Item_Name, b.Batch_Code,
+                   -d.Quantity AS Quantity, CONCAT(ds.Disaster_Type, ' #', d.Disaster_ID, ' / ', s.Shelter_Name) AS Destination,
+                   NULL AS Recorded_By
+              FROM relief_distribution d JOIN relief_item i ON i.Relief_ID = d.Relief_ID
+              JOIN relief_batch b ON b.Batch_ID = d.Batch_ID
+              JOIN disaster ds ON ds.Disaster_ID = d.Disaster_ID
+              JOIN shelter s ON s.Shelter_ID = d.Shelter_ID
+          ) m ORDER BY COALESCE(m.Movement_Date, '1000-01-01') DESC, m.Batch_Code, m.Movement_Type LIMIT $limit"
+    );
+}
+
 /** Great-circle distance in km between two latitude / longitude points. */
 function km_between(float $lat1, float $lng1, float $lat2, float $lng2): float
 {
@@ -112,7 +147,7 @@ function path_status(): array
     $out = [];
     $areas = rows('SELECT Area_ID AS id, Area_Name AS name, Location AS loc, Risk_Level AS risk, Latitude AS lat, Longitude AS lng FROM area
                     WHERE Latitude IS NOT NULL AND Longitude IS NOT NULL ORDER BY Area_Name');
-    foreach (rows("SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster WHERE Status = 'Active' ORDER BY Disaster_Date DESC, Disaster_ID DESC") as $d) {
+    foreach (rows("SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster WHERE Status IN ('Active', 'Under control') ORDER BY Disaster_Date DESC, Disaster_ID DESC") as $d) {
         $pts = rows('SELECT Point_Time AS time, Point_Type AS type, Latitude AS lat, Longitude AS lng, Radius_Km AS radius, Wind_Speed_Kmh AS wind
                        FROM disaster_track WHERE Disaster_ID = ? ORDER BY Point_Time, Track_ID', [$d['Disaster_ID']]);
         if (!$pts) {
@@ -180,7 +215,7 @@ function relief_info(int $people, int $received, bool $flagged): array
  */
 function relief_status(): array
 {
-    return array_map('relief_for_disaster', rows("SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster WHERE Status = 'Active' ORDER BY Disaster_Date DESC, Disaster_ID DESC"));
+    return array_map('relief_for_disaster', rows("SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster WHERE Status IN ('Active', 'Under control') ORDER BY Disaster_Date DESC, Disaster_ID DESC"));
 }
 
 /** Relief received / not received for ONE disaster (any status), per home area. $d = row with Disaster_ID, Disaster_Type, Disaster_Date. */
@@ -258,7 +293,7 @@ function signal_summary(): array
 {
     $disasters = [];
     $areaSig   = [];                  // Area_ID => ['level' => highest signal or null, 'by' => ["Cyclone (signal 10)", ...]]
-    foreach (rows("SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster WHERE Status = 'Active' ORDER BY Disaster_Date DESC, Disaster_ID DESC") as $d) {
+    foreach (rows("SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster WHERE Status IN ('Active', 'Under control') ORDER BY Disaster_Date DESC, Disaster_ID DESC") as $d) {
         $w = row1('SELECT Alert_Type, Signal_Level, Alert_DateTime, Message FROM early_warning
                     WHERE Disaster_ID = ? AND Signal_Level IS NOT NULL ORDER BY Alert_DateTime DESC, Alert_ID DESC LIMIT 1', [$d['Disaster_ID']]);
         $lvl   = $w ? (int) $w['Signal_Level'] : null;
@@ -293,35 +328,85 @@ function signal_summary(): array
 
 /**
  * Things that need attention, most urgent first: [level 'err'|'warn'|'info', text, link].
- * Thresholds: shelter 90% full, relief stock under 20% left, families staying over 30 days.
+ * Thresholds: severe signal 8+, shelter 90% full, relief stock under 20% left, families staying over 30 days.
  */
 function alerts(): array
 {
     $a = [];
+    foreach (rows("SELECT d.Disaster_ID, d.Disaster_Type, w.Signal_Level, w.Alert_Type
+                     FROM disaster d
+                     JOIN early_warning w ON w.Disaster_ID = d.Disaster_ID
+                    WHERE d.Status IN ('Active','Under control')
+                      AND w.Signal_Level >= 8
+                      AND w.Alert_ID = (
+                          SELECT latest.Alert_ID FROM early_warning latest
+                           WHERE latest.Disaster_ID = d.Disaster_ID AND latest.Signal_Level IS NOT NULL
+                           ORDER BY latest.Alert_DateTime DESC, latest.Alert_ID DESC LIMIT 1
+                      )
+                    ORDER BY w.Alert_DateTime DESC, d.Disaster_ID") as $warning) {
+        $id = (int) $warning['Disaster_ID'];
+        $a[] = ['err', 'Severe warning - ' . $warning['Disaster_Type'] . ' #' . $id . ': signal '
+            . (int) $warning['Signal_Level'] . ' (' . $warning['Alert_Type'] . ').',
+            'table.php?' . http_build_query(['t' => 'early_warning', 'col' => 'Disaster_ID', 'q' => $id]),
+            'severe_signal:' . $id];
+    }
     foreach (shelter_summary() as $s) {
         if ($s['capacity'] > 0 && $s['occupied'] / $s['capacity'] >= 0.9) {
             $a[] = ['err', $s['name'] . ' is ' . round($s['occupied'] / $s['capacity'] * 100) . '% full (' . $s['occupied'] . ' of ' . $s['capacity'] . ' places).',
-                'table.php?' . http_build_query(['t' => 'shelter_assignment', 'col' => 'Shelter_ID', 'q' => $s['name']])];
+                'table.php?' . http_build_query(['t' => 'shelter_assignment', 'col' => 'Shelter_ID', 'q' => $s['name']]), 'shelter_capacity:' . $s['id']];
         }
     }
     foreach (relief_summary() as $r) {
         if ($r['remaining'] < 0) {
-            $a[] = ['err', $r['name'] . ': more was given out than was received (' . $r['remaining'] . ').', 'table.php?t=relief_distribution'];
+            $a[] = ['err', $r['name'] . ': more was given out than was received (' . $r['remaining'] . ').', 'table.php?t=relief_distribution', 'relief_overdraw:' . $r['id']];
         } elseif ($r['received'] > 0 && $r['remaining'] / $r['received'] < 0.2) {
-            $a[] = ['warn', 'Low relief stock - ' . $r['name'] . ': ' . $r['remaining'] . ' of ' . $r['received'] . ' left.', 'table.php?t=relief_item'];
+            $a[] = ['warn', 'Low relief stock - ' . $r['name'] . ': ' . $r['remaining'] . ' of ' . $r['received'] . ' left.', 'table.php?t=relief_item', 'relief_low_stock:' . $r['id']];
         }
     }
-    foreach (rows("SELECT Area_Name, Risk_Level FROM area a WHERE Risk_Level IN ('High', 'Very High')
+    foreach (rows("SELECT Area_ID, Area_Name, Risk_Level FROM area a WHERE Risk_Level IN ('High', 'Very High')
                       AND NOT EXISTS (SELECT 1 FROM shelter s WHERE s.Area_ID = a.Area_ID) ORDER BY Area_Name") as $r) {
-        $a[] = ['warn', $r['Area_Name'] . ' has ' . $r['Risk_Level'] . ' risk but no shelter.', 'table.php?t=shelter'];
+        $a[] = ['warn', $r['Area_Name'] . ' has ' . $r['Risk_Level'] . ' risk but no shelter.', 'table.php?t=shelter', 'area_no_shelter:' . $r['Area_ID']];
     }
-    foreach (rows('SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster d
-                    WHERE NOT EXISTS (SELECT 1 FROM early_warning w WHERE w.Disaster_ID = d.Disaster_ID) ORDER BY Disaster_Date') as $r) {
-        $a[] = ['warn', $r['Disaster_Type'] . ' of ' . $r['Disaster_Date'] . ' has no early warning recorded.', 'table.php?t=early_warning'];
+    foreach (rows("SELECT Disaster_ID, Disaster_Type, Disaster_Date FROM disaster d
+                    WHERE d.Status IN ('Active','Under control')
+                      AND NOT EXISTS (SELECT 1 FROM early_warning w WHERE w.Disaster_ID = d.Disaster_ID) ORDER BY Disaster_Date") as $r) {
+        $a[] = ['warn', $r['Disaster_Type'] . ' of ' . $r['Disaster_Date'] . ' has no early warning recorded.', 'table.php?t=early_warning', 'disaster_no_warning:' . $r['Disaster_ID']];
+    }
+    foreach (rows("SELECT s.Shelter_ID, s.Shelter_Name FROM shelter s
+                    WHERE EXISTS (SELECT 1 FROM disaster_shelter ds JOIN disaster d ON d.Disaster_ID = ds.Disaster_ID
+                                   WHERE ds.Shelter_ID = s.Shelter_ID AND d.Status IN ('Active','Under control'))
+                      AND (s.Capacity_Verified_At IS NULL OR s.Capacity_Verified_At < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY))
+                    ORDER BY s.Shelter_Name") as $r) {
+        $a[] = ['warn', 'Confirm the capacity and readiness of ' . $r['Shelter_Name'] . ' (not checked in the last 7 days).',
+            'table.php?' . http_build_query(['t' => 'shelter', 'col' => 'Shelter_ID', 'q' => $r['Shelter_ID']]), 'shelter_capacity_stale:' . $r['Shelter_ID']];
+    }
+    foreach (rows("SELECT Task_ID, Task_Title, Due_At FROM incident_task
+                    WHERE Status <> 'Done' AND Due_At IS NOT NULL AND Due_At < CURRENT_TIMESTAMP ORDER BY Due_At") as $r) {
+        $a[] = ['err', 'Overdue response task - ' . $r['Task_Title'] . ' (due ' . $r['Due_At'] . ').',
+            'table.php?' . http_build_query(['t' => 'incident_task', 'col' => 'Task_ID', 'q' => $r['Task_ID']]), 'incident_task_overdue:' . $r['Task_ID']];
+    }
+    foreach (stock_batches() as $batch) {
+        if ((int) $batch['Remaining'] <= 0 || $batch['Expiry_Date'] === null) {
+            continue;
+        }
+        $days = (int) floor((strtotime((string) $batch['Expiry_Date']) - strtotime(date('Y-m-d'))) / 86400);
+        if ($days < 0 || $days <= 30) {
+            $level = $days < 0 ? 'err' : 'warn';
+            $message = $days < 0 ? 'Expired stock remaining' : 'Stock nearing expiry';
+            $a[] = [$level, "$message - {$batch['Item_Name']} batch {$batch['Batch_Code']}: {$batch['Remaining']} units (expiry {$batch['Expiry_Date']}).",
+                'stock.php#batch-' . (int) $batch['Batch_ID'], 'relief_batch_expiry:' . $batch['Batch_ID']];
+        }
+    }
+    foreach (rows('SELECT i.Relief_ID, i.Item_Name, i.Quantity, COALESCE(SUM(b.Quantity_Received), 0) AS Batched
+                    FROM relief_item i LEFT JOIN relief_batch b ON b.Relief_ID = i.Relief_ID
+                   GROUP BY i.Relief_ID, i.Item_Name, i.Quantity
+                  HAVING i.Quantity <> Batched ORDER BY i.Item_Name') as $item) {
+        $a[] = ['err', "Inventory discrepancy - {$item['Item_Name']}: item total {$item['Quantity']} but batches total {$item['Batched']}.",
+            'table.php?' . http_build_query(['t' => 'relief_item', 'col' => 'Relief_ID', 'q' => $item['Relief_ID']]), 'relief_batch_discrepancy:' . $item['Relief_ID']];
     }
     $long = (int) scalar('SELECT COUNT(*) FROM shelter_assignment WHERE Check_Out IS NULL AND Check_In < DATE_SUB(CURDATE(), INTERVAL 30 DAY)');
     if ($long > 0) {
-        $a[] = ['info', "$long " . ($long === 1 ? 'family has' : 'families have') . ' been in a shelter for more than 30 days.', 'table.php?t=shelter_assignment'];
+        $a[] = ['info', "$long " . ($long === 1 ? 'family has' : 'families have') . ' been in a shelter for more than 30 days.', 'table.php?t=shelter_assignment', 'long_shelter_stays'];
     }
     return $a;
 }

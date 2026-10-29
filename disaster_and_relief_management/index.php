@@ -88,9 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $dbErr === '') {
 <title>Sign in - Disaster &amp; Relief Management</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="stylesheet" href="assets/style.css">
+<script src="assets/i18n.js?v=<?= (int) filemtime(__DIR__ . '/assets/i18n.js') ?>" defer></script>
 </head>
 <body class="login-body">
 <div class="login-card">
+  <div class="login-language"><button class="btn btn-sm btn-ghost language-toggle" type="button" data-language-toggle aria-label="Switch to Bangla" title="Switch to Bangla">বাংলা</button></div>
   <img class="logo-img big" src="assets/logo.png" width="64" height="64" alt="Disaster Mapping &amp; Relief Management System">
   <h1>Disaster Mapping &amp; Relief Management System</h1>
   <p class="muted"><?= $setup ? 'First run: create the administrator account' : 'Sign in to continue' ?></p>
