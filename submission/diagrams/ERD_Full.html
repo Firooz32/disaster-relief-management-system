@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Entity-Relationship Diagram (full, with attributes)</title>
+<style>body{margin:0;background:#fff;font-family:Segoe UI,Arial,sans-serif}h1{font-size:28px;margin:18px 24px 0}p{margin:4px 24px 0;color:#444}.mermaid{width:6000px;padding:12px}</style></head><body>
+<h1>Entity-Relationship Diagram (full, with attributes)</h1>
+<p>Disaster Mapping &amp; Relief Management System - 25 tables. ||--o{ one-to-many (parent required), |o--o{ optional parent. Line label: foreign key and its ON DELETE rule.</p>
+<pre class="mermaid">
+erDiagram
+    area |o--o{ affected_person : &quot;Area_ID SET NULL&quot;
+    emergency_item ||--o{ affected_person_emergency_item : &quot;Item_ID CASCADE&quot;
+    affected_person ||--o{ affected_person_emergency_item : &quot;Person_ID CASCADE&quot;
+    area |o--o{ damage : &quot;Area_ID SET NULL&quot;
+    disaster ||--o{ damage : &quot;Disaster_ID CASCADE&quot;
+    users |o--o{ disaster : &quot;Incident_Lead_ID SET NULL&quot;
+    disaster ||--o{ disaster_affected_person : &quot;Disaster_ID CASCADE&quot;
+    affected_person ||--o{ disaster_affected_person : &quot;Person_ID CASCADE&quot;
+    area ||--o{ disaster_area : &quot;Area_ID CASCADE&quot;
+    disaster ||--o{ disaster_area : &quot;Disaster_ID CASCADE&quot;
+    disaster ||--o{ disaster_rescue_org : &quot;Disaster_ID CASCADE&quot;
+    rescue_org ||--o{ disaster_rescue_org : &quot;Org_ID CASCADE&quot;
+    disaster ||--o{ disaster_shelter : &quot;Disaster_ID CASCADE&quot;
+    shelter ||--o{ disaster_shelter : &quot;Shelter_ID CASCADE&quot;
+    disaster ||--o{ disaster_track : &quot;Disaster_ID CASCADE&quot;
+    disaster ||--o{ early_warning : &quot;Disaster_ID CASCADE&quot;
+    users |o--o{ incident_task : &quot;Assigned_To SET NULL&quot;
+    users ||--o{ incident_task : &quot;Created_By RESTRICT&quot;
+    disaster ||--o{ incident_task : &quot;Disaster_ID CASCADE&quot;
+    area |o--o{ incident_update : &quot;Area_ID SET NULL&quot;
+    disaster ||--o{ incident_update : &quot;Disaster_ID CASCADE&quot;
+    users ||--o{ incident_update : &quot;Reported_By RESTRICT&quot;
+    users |o--o{ relief_batch : &quot;Received_By SET NULL&quot;
+    relief_item ||--o{ relief_batch : &quot;Relief_ID RESTRICT&quot;
+    relief_batch ||--o{ relief_distribution : &quot;Batch_ID RESTRICT&quot;
+    disaster ||--o{ relief_distribution : &quot;Disaster_ID CASCADE&quot;
+    rescue_org |o--o{ relief_distribution : &quot;Org_ID SET NULL&quot;
+    relief_item ||--o{ relief_distribution : &quot;Relief_ID RESTRICT&quot;
+    shelter ||--o{ relief_distribution : &quot;Shelter_ID RESTRICT&quot;
+    relief_distribution ||--o{ relief_recipient : &quot;Distribution_ID CASCADE&quot;
+    affected_person ||--o{ relief_recipient : &quot;Person_ID CASCADE&quot;
+    rescue_org ||--o{ rescue_org_relief_item : &quot;Org_ID CASCADE&quot;
+    relief_item ||--o{ rescue_org_relief_item : &quot;Relief_ID CASCADE&quot;
+    area ||--o{ shelter : &quot;Area_ID RESTRICT&quot;
+    users |o--o{ shelter : &quot;Capacity_Verified_By SET NULL&quot;
+    disaster ||--o{ shelter_assignment : &quot;Disaster_ID CASCADE&quot;
+    affected_person ||--o{ shelter_assignment : &quot;Person_ID CASCADE&quot;
+    shelter ||--o{ shelter_assignment : &quot;Shelter_ID RESTRICT&quot;
+    emergency_item ||--o{ shelter_emergency_item : &quot;Item_ID CASCADE&quot;
+    shelter ||--o{ shelter_emergency_item : &quot;Shelter_ID CASCADE&quot;
+    affected_person {
+        int Person_ID PK
+        varchar Name &quot;NOT NULL&quot;
+        int Family_Size &quot;NOT NULL&quot;
+        varchar Contact
+        int Area_ID FK
+    }
+    affected_person_emergency_item {
+        int Person_ID PK, FK
+        int Item_ID PK, FK
+    }
+    area {
+        int Area_ID PK
+        varchar Area_Name &quot;NOT NULL&quot;
+        varchar Location &quot;NOT NULL&quot;
+        enum Risk_Level
+        decimal Latitude
+        decimal Longitude
+    }
+    audit_log {
+        int Log_ID PK
+        varchar User_Name &quot;NOT NULL&quot;
+        varchar Action &quot;NOT NULL&quot;
+        varchar Table_Name &quot;NOT NULL&quot;
+        varchar Record_Key
+        text Details
+        timestamp Created_At &quot;NOT NULL&quot;
+    }
+    damage {
+        int Damage_ID PK
+        int Disaster_ID FK &quot;NOT NULL&quot;
+        varchar Damage_Type &quot;NOT NULL&quot;
+        int Area_ID FK
+        text Description
+        int Quantity &quot;NOT NULL&quot;
+        decimal Estimated_Loss &quot;NOT NULL&quot;
+    }
+    disaster {
+        int Disaster_ID PK
+        varchar Disaster_Type &quot;NOT NULL&quot;
+        date Disaster_Date &quot;NOT NULL&quot;
+        text Description
+        enum Status &quot;NOT NULL&quot;
+        int Incident_Lead_ID FK
+        datetime Status_Changed_At
+        datetime Closed_At
+    }
+    disaster_affected_person {
+        int Disaster_ID PK, FK
+        int Person_ID PK, FK
+    }
+    disaster_area {
+        int Disaster_ID PK, FK
+        int Area_ID PK, FK
+        enum Relief_Shortage &quot;NOT NULL&quot;
+    }
+    disaster_rescue_org {
+        int Disaster_ID PK, FK
+        int Org_ID PK, FK
+    }
+    disaster_shelter {
+        int Disaster_ID PK, FK
+        int Shelter_ID PK, FK
+    }
+    disaster_track {
+        int Track_ID PK
+        int Disaster_ID FK &quot;NOT NULL&quot;
+        datetime Point_Time &quot;NOT NULL&quot;
+        enum Point_Type &quot;NOT NULL&quot;
+        decimal Latitude &quot;NOT NULL&quot;
+        decimal Longitude &quot;NOT NULL&quot;
+        int Radius_Km &quot;NOT NULL&quot;
+        int Wind_Speed_Kmh
+    }
+    early_warning {
+        int Alert_ID PK
+        int Disaster_ID FK &quot;NOT NULL&quot;
+        varchar Alert_Type &quot;NOT NULL&quot;
+        tinyint Signal_Level
+        datetime Alert_DateTime &quot;NOT NULL&quot;
+        text Message
+    }
+    emergency_item {
+        int Item_ID PK
+        varchar Item_Name UK &quot;NOT NULL&quot;
+        varchar Category
+    }
+    incident_task {
+        int Task_ID PK
+        int Disaster_ID FK &quot;NOT NULL&quot;
+        varchar Task_Title &quot;NOT NULL&quot;
+        text Details
+        int Assigned_To FK
+        datetime Due_At
+        enum Status &quot;NOT NULL&quot;
+        int Created_By FK &quot;NOT NULL&quot;
+        timestamp Created_At &quot;NOT NULL&quot;
+        timestamp Updated_At &quot;NOT NULL&quot;
+    }
+    incident_update {
+        int Update_ID PK
+        int Disaster_ID FK &quot;NOT NULL&quot;
+        int Area_ID FK
+        enum Update_Type &quot;NOT NULL&quot;
+        varchar Summary &quot;NOT NULL&quot;
+        text Details &quot;NOT NULL&quot;
+        datetime Observed_At &quot;NOT NULL&quot;
+        int Reported_By FK &quot;NOT NULL&quot;
+        timestamp Created_At &quot;NOT NULL&quot;
+    }
+    relief_batch {
+        int Batch_ID PK
+        int Relief_ID FK &quot;NOT NULL&quot;
+        varchar Batch_Code UK &quot;NOT NULL&quot;
+        int Quantity_Received &quot;NOT NULL&quot;
+        date Received_At
+        date Expiry_Date
+        varchar Source
+        varchar Storage_Location
+        text Notes
+        int Received_By FK
+        timestamp Created_At &quot;NOT NULL&quot;
+    }
+    relief_distribution {
+        int Distribution_ID PK
+        int Disaster_ID FK &quot;NOT NULL&quot;
+        int Relief_ID FK &quot;NOT NULL&quot;
+        int Batch_ID FK &quot;NOT NULL&quot;
+        int Shelter_ID FK &quot;NOT NULL&quot;
+        int Org_ID FK
+        int Quantity &quot;NOT NULL&quot;
+        date Distribution_Date &quot;NOT NULL&quot;
+    }
+    relief_item {
+        int Relief_ID PK
+        varchar Item_Name UK &quot;NOT NULL&quot;
+        varchar Category
+        int Quantity &quot;NOT NULL&quot;
+    }
+    relief_recipient {
+        int Distribution_ID PK, FK
+        int Person_ID PK, FK
+    }
+    rescue_org {
+        int Org_ID PK
+        varchar Org_Name UK &quot;NOT NULL&quot;
+        varchar Org_Type
+        varchar Contact
+    }
+    rescue_org_relief_item {
+        int Org_ID PK, FK
+        int Relief_ID PK, FK
+    }
+    shelter {
+        int Shelter_ID PK
+        varchar Shelter_Name UK &quot;NOT NULL&quot;
+        varchar Location &quot;NOT NULL&quot;
+        int Capacity &quot;NOT NULL&quot;
+        int Area_ID FK &quot;NOT NULL&quot;
+        decimal Latitude
+        decimal Longitude
+        text Services
+        text Accessibility_Notes
+        datetime Capacity_Verified_At
+        int Capacity_Verified_By FK
+    }
+    shelter_assignment {
+        int Assignment_ID PK
+        int Disaster_ID FK &quot;NOT NULL&quot;
+        int Person_ID FK &quot;NOT NULL&quot;
+        int Shelter_ID FK &quot;NOT NULL&quot;
+        date Check_In &quot;NOT NULL&quot;
+        date Check_Out
+    }
+    shelter_emergency_item {
+        int Shelter_ID PK, FK
+        int Item_ID PK, FK
+    }
+    users {
+        int User_ID PK
+        varchar Username UK &quot;NOT NULL&quot;
+        varchar Password_Hash &quot;NOT NULL&quot;
+        enum Role &quot;NOT NULL&quot;
+        int Failed_Logins &quot;NOT NULL&quot;
+        datetime Locked_Until
+        timestamp Created_At &quot;NOT NULL&quot;
+    }
+</pre>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11.6.0/dist/mermaid.esm.min.mjs';
+import elk from 'https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.7/dist/mermaid-layout-elk.esm.min.mjs';
+mermaid.registerLayoutLoaders(elk);
+mermaid.initialize({startOnLoad:true, theme:'default', layout:'elk', elk:{mergeEdges:false, nodePlacementStrategy:'NETWORK_SIMPLEX'}, er:{useMaxWidth:false, fontSize:14}, maxTextSize:200000});
+</script>
+</body></html>

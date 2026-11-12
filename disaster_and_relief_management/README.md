@@ -6,7 +6,7 @@ A PHP + MySQL web application for recording disasters and their effects, shelter
 and watching the situation on one **Live Report** that refreshes itself every 5 seconds.
 Built for WampServer; no framework, no build step, no Composer.
 
-* 23 database tables (22 shown in the app), 8 integrity triggers, CHECK constraints and foreign keys with deliberate `ON DELETE` rules
+* 25 database tables (24 record pages and a separately administered `users` table), 8 integrity triggers, CHECK constraints and foreign keys with deliberate `ON DELETE` rules
 * Role-based login (admin / editor / viewer), audit log with before/after values and record confirmations, CSRF protection, Content-Security-Policy
 * Automated smoke checks (`php tests/smoke.php`)
 
@@ -14,7 +14,7 @@ Built for WampServer; no framework, no build step, no Composer.
 
 ## 1. Quick start
 
-**With WampServer**finish running tasks
+**With WampServer**
 
 
 1. Start WampServer (icon green).
@@ -132,7 +132,7 @@ A signed-in session ends after 4 hours without a click; the Live Report's automa
 | **Shelter readiness** | Record services and accessibility notes; editors can confirm capacity/readiness, with the verification time and reviewer recorded. Active-incident shelters not checked in the last 7 days are flagged |
 | **Map** | All areas (risk-coloured circles) and shelters (green / orange / red by fill level) |
 | **Search** | One box that searches every table, including readable names from linked records; autocomplete suggestions on each table page |
-| **Table pages** (22) | Sort, search linked records, paginate, **CSV export**, review record confirmation status, add / edit / delete. Shelter rows have a dedicated **Confirm capacity** action. Delete shows what else would disappear or what blocks it |
+| **Table pages** (24) | Sort, search linked records, paginate, **CSV export**, review record confirmation status, add / edit / delete where permitted. Shelter rows have a dedicated **Confirm capacity** action. Delete shows what else would disappear or what blocks it |
 | **Users** (admin) | Accounts and roles |
 | **Audit Log** | Who added / edited / deleted what, with the old and new values (read-only) |
 
@@ -174,7 +174,7 @@ experience. Use the **Open Live Weather in a new tab** link if the embedded page
 is unavailable or inconvenient on your device. This feature requires an internet connection and relies on Ventusky's
 availability and embedding behavior.
 
-### 3.3 Database (22 tables)
+### 3.3 Database (25 tables: 24 record pages plus Users)
 
 Main tables: `disaster`, `area`, `affected_person` (a family; `Family_Size` people; home `Area_ID`), `shelter`, `rescue_org`, `relief_item`, `emergency_item`, `early_warning` (with `Signal_Level` 1-10), `damage`,
 `shelter_assignment` (who stayed where; empty `Check_Out` = staying now), `relief_distribution` (what was given where), `disaster_track` (path points), `audit_log`, `users`.
@@ -230,10 +230,10 @@ every page and table in a real headless browser with no console or CSP errors, a
 
 ## 6. Upgrading and resetting
 
-* **From the previous 20-table version**: just open any page. A database that only lacks the new tables is upgraded **in place** (new columns, tables, triggers, plus sample rows only if the data is still the untouched sample). Existing rows and users are kept. The MySQL user in `config.php` needs ALTER / CREATE / TRIGGER rights for this one time (root is fine).
+* **From a previous version**: back up the database first. A database missing only known, supported additions is upgraded **in place** (new columns, tables, triggers, plus sample rows only if the data is still the untouched sample). Existing rows and users are kept. The MySQL user in `config.php` needs ALTER / CREATE / TRIGGER rights for this one time.
 * **Incident workflow update**: back up the database, then sign in once with a MySQL account that can ALTER the database. Existing `Ended` statuses are mapped to `Closed`; the schema is then ready for the four-stage workflow. Switch back to the least-privileged app account afterwards.
-* **Any other incomplete database** is never overwritten: you get a message instead. Back up what you need, drop the database in phpMyAdmin and reload.
-* **Start again from scratch**: drop `disaster_and_relief_management` in phpMyAdmin and reload the page (the admin account must then be created again).
+* **Any other incomplete database** is never overwritten: the installer stops and reports the problem. Preserve the database and review its name, schema, grants, and backup before deciding on an administrator-approved recovery.
+* **Disposable reset only**: never drop or reset a database to troubleshoot. If a clean test is explicitly required, verify that the connection targets a separate disposable database and make a backup before an authorized reset.
 
 ---
 

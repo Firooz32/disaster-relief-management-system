@@ -197,7 +197,30 @@ check('rule: editing that same record is allowed',
     check_rules('shelter_assignment', ['Disaster_ID' => $first['Disaster_ID'], 'Person_ID' => $first['Person_ID'], 'Shelter_ID' => $first['Shelter_ID'], 'Check_Out' => ''], ['Assignment_ID' => (string) $first['Assignment_ID']]) === null);
 check('rule: a shelter that is not part of the disaster is refused',
     str_contains((string) check_rules('shelter_assignment', ['Disaster_ID' => 1, 'Person_ID' => 1, 'Shelter_ID' => 11, 'Check_Out' => '2026-01-01'], null), 'not used for this disaster'));
-$dd = row1('SELECT d.Disaster_ID, d.Relief_ID, d.Batch_ID, d.Shelter_ID, d.Org_ID FROM relief_distribution d LIMIT 1');
+$moved = row1('SELECT a.Disaster_ID, a.Person_ID, a.Check_Out,
+                      (SELECT ds.Shelter_ID FROM disaster_shelter ds WHERE ds.Disaster_ID = a.Disaster_ID AND ds.Shelter_ID <> a.Shelter_ID LIMIT 1) AS other
+                 FROM shelter_assignment a
+                WHERE a.Check_Out IS NOT NULL
+                  AND NOT EXISTS (SELECT 1 FROM shelter_assignment o WHERE o.Person_ID = a.Person_ID AND o.Check_Out IS NULL) LIMIT 1');
+db()->begin_transaction();
+$movedOk = true;
+$secondOpenRefused = false;
+try {
+    q('INSERT INTO shelter_assignment (Disaster_ID, Person_ID, Shelter_ID, Check_In) VALUES (?, ?, ?, ?)',
+      [$moved['Disaster_ID'], $moved['Person_ID'], $moved['other'], $moved['Check_Out']]);
+} catch (mysqli_sql_exception $e) {
+    $movedOk = false;
+}
+try {                                           // the database itself refuses a second open stay for the same person
+    q('INSERT INTO shelter_assignment (Disaster_ID, Person_ID, Shelter_ID, Check_In) VALUES (?, ?, ?, ?)',
+      [$moved['Disaster_ID'], $moved['Person_ID'], $moved['other'], $moved['Check_Out']]);
+} catch (mysqli_sql_exception $e) {
+    $secondOpenRefused = $e->getCode() === 1062;
+}
+db()->rollback();
+check('a checked-out family can move to another shelter in the same disaster', $moved !== null && $movedOk);
+check('database refuses a second open shelter stay for one person (functional unique index)', $secondOpenRefused);
+$dd =row1('SELECT d.Disaster_ID, d.Relief_ID, d.Batch_ID, d.Shelter_ID, d.Org_ID FROM relief_distribution d LIMIT 1');
 check('rule: giving out more than the stock is refused',
     str_contains((string) check_rules('relief_distribution', $dd + ['Quantity' => 999999], null), 'Not enough stock'));
 check('rule: a normal distribution passes', check_rules('relief_distribution', $dd + ['Quantity' => 1], null) === null);

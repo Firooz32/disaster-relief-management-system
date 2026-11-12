@@ -34,6 +34,11 @@ function column_type(string $t, string $c): string
     return (string) ($row['COLUMN_TYPE'] ?? '');
 }
 
+function has_index(string $t, string $i): bool
+{
+    return scalar('SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?', [$t, $i]) > 0;
+}
+
 function column_nullable(string $t, string $c): bool
 {
     $row = row1('SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [$t, $c]);
@@ -141,7 +146,7 @@ function upgrade_current_schema(): void
                      SELECT r.Relief_ID, CONCAT('LEGACY-', r.Relief_ID), r.Quantity, 'Imported opening stock; original receipt date unknown'
                        FROM relief_item r
                       WHERE r.Quantity > 0
-                        AND NOT EXISTS (SELECT 1 FROM relief_batch b WHERE b.Batch_Code = CONCAT('LEGACY-', r.Relief_ID))");
+                        AND NOT EXISTS (SELECT 1 FROM relief_batch b WHERE b.Relief_ID = r.Relief_ID)");   // items whose stock is already in batches keep them
         db()->query("UPDATE relief_distribution d JOIN relief_batch b
                        ON b.Relief_ID = d.Relief_ID AND b.Batch_Code = CONCAT('LEGACY-', d.Relief_ID)
                         SET d.Batch_ID = b.Batch_ID WHERE d.Batch_ID IS NULL");
@@ -150,6 +155,13 @@ function upgrade_current_schema(): void
         }
         if (column_nullable('relief_distribution', 'Batch_ID')) {
             db()->query('ALTER TABLE relief_distribution MODIFY COLUMN Batch_ID int NOT NULL');
+        }
+
+        // one stay per disaster blocked moving a family to a second shelter; the real rule is "at most one open stay per person"
+        if (has_index('shelter_assignment', 'uq_assignment_disaster_person')) {
+            db()->query('ALTER TABLE shelter_assignment ADD KEY ix_assignment_disaster_person (Disaster_ID, Person_ID),
+                         ADD UNIQUE KEY uq_assignment_open_stay ((IF(Check_Out IS NULL, Person_ID, NULL))),
+                         DROP INDEX uq_assignment_disaster_person');
         }
 
         $statusType = column_type('disaster', 'Status');

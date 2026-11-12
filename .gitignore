@@ -8,3 +8,7 @@ disaster_and_relief_management/config.php
 Thumbs.db
 .vscode/
 .claude/
+
+# large media (over GitHub's 100 MB limit; videos live on YouTube / locally)
+*.mp4
+*.mp3

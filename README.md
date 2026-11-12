@@ -2,37 +2,35 @@
 
 # Disaster Mapping & Relief Management System
 
-A PHP 8 + MySQL 8 web application (WampServer) that records disasters and their effects, shelters affected families,
-tracks relief distribution, shows **Live Weather** for Khulna (powered by Ventusky), and presents the whole situation
-on a **Live Report** that refreshes itself every 5 seconds. The interface includes an English/Bangla toggle that
-remembers the choice in the current browser.
+A PHP 8 + MySQL 8 incident response and relief management application. It tracks incidents, affected families, warnings, shelter occupancy, field response tasks, partners, relief stock, and distribution. The **Live Report** combines warning signals, mapped incident paths, available shelter capacity, and relief coverage; the dashboard, interactive map, incident report, Data Health, inventory, and user administration support the wider response workflow.
 
-| Live Report panel | Rule |
-|---|---|
-| **Warning signals** | 1-3 green *Normal*, 4-7 orange *Danger*, 8-10 red *Severe Danger* |
-| **Shelter space** | places left in green with the exact number; red *No space available* at 0; nearest-shelter finder |
-| **Relief distribution** | green with the number of people reached; red *Shortage* with both *received* and *not received* |
-| **Live disaster path** | Leaflet map: observed track, forecast, current position and impact circle, areas being crossed / in the path |
+## Submission package
 
-Also: dashboard summary, data-health report (17 checks), inventory batches, incident response tasks and field updates,
-8 database triggers, audit log with before/after values, roles (admin / editor / viewer), CSRF protection and Content-Security-Policy.
+- **`DRMS_Submission_Package.zip`** - complete final project files and companion documents.
+- **`DRMS_Deep_System_Walkthrough.mp4`** - the original sign-in overview followed by the detailed feature walkthrough, in sequence; silent, with brief English visual callouts and no audio or subtitle track.
+- **`DRMS_Detailed_Feature_Walkthrough.mp4`** - the detailed portion as a standalone video.
+- **`DRMS_Submission_Guide.pdf`** - installation, detailed operator instructions, all 24 record pages, roles, data rules, testing, and troubleshooting.
 
-## Run it
+See [`DRMS_Submission_Guide.md`](DRMS_Submission_Guide.md) for the complete text guide and test checklist.
 
-1. Copy the folder [`disaster_and_relief_management/`](disaster_and_relief_management) into `C:\wamp64\www\` and start WampServer.
-2. Copy `config.sample.php` to `config.php` and enter your MySQL login (the WampServer default `root` with an empty password also works).
-3. Open <http://localhost/disaster_and_relief_management/>. The database, 25 tables, 8 triggers and sample data are created on the first visit;
-   then create the administrator account on the first-run screen.
+## Run the application on Windows
 
-`start_localhost.bat` starts MySQL + Apache and opens the link; `start_server.bat` runs without Apache.
+1. Extract `DRMS_Submission_Package.zip`.
+2. Copy the `disaster_and_relief_management` folder to `C:\wamp64\www\`.
+3. In the application folder, copy `config.sample.php` to `config.php` and configure the local MySQL connection. An authorized first-run account needs permission to create the database, schema, and triggers.
+4. Start WampServer and open `http://localhost/disaster_and_relief_management/`; or use `start_localhost.bat`.
+5. On a fresh database, create the first administrator account. All included example data is fictional.
 
-## Documentation
+`start_server.bat` offers an alternative PHP development server on `http://127.0.0.1:8099/`. Do not expose this development server to the public internet.
 
-* [`disaster_and_relief_management/README.md`](disaster_and_relief_management/README.md) - features, roles, database, security, tests, upgrade, troubleshooting
-* [`DRMS_Project_Overview_and_User_Guide.docx`](DRMS_Project_Overview_and_User_Guide.docx) - 45-page step-by-step guide with screenshots
-* [`DRMS_ER_Diagram.pdf`](DRMS_ER_Diagram.pdf) - entity-relationship diagram of the original 22-table schema; it does not yet include the incident and inventory additions
-* [`PLAN.md`](PLAN.md) - goals, decisions, architecture, quality gates
-* [`TASKS.md`](TASKS.md) - task checklist with what was verified
+Requirements: PHP 8.1+ with `mysqli` and `mbstring`; MySQL 8.0.16+; WampServer on Windows. Internet access is needed for OpenStreetMap map tiles and Ventusky weather.
 
-Tests: `php disaster_and_relief_management/tests/smoke.php` (MySQL must be running; it changes nothing permanent).
-All sample data is fictional.
+## Project files
+
+- [`disaster_and_relief_management/README.md`](disaster_and_relief_management/README.md) - application features, setup, security, tests, upgrades, and known limits.
+- [`DRMS_Submission_Guide.md`](DRMS_Submission_Guide.md) - current operator guide and detailed acceptance checklist.
+- [`DRMS_ER_Diagram.pdf`](DRMS_ER_Diagram.pdf) - original-schema diagram, explicitly not a complete representation of all current additions.
+- [`PLAN.md`](PLAN.md) and [`TASKS.md`](TASKS.md) - project history and previously verified engineering work.
+- `disaster_and_relief_management/tests/smoke.php` and `tests/concurrency.php` - database, business-rule, permission, and race-condition tests. Run them on a disposable test database only.
+
+All demo data is fictional. For actual response use, use approved privacy controls, HTTPS, and a least-privilege database user; see the full guide.

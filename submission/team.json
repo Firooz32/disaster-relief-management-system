@@ -1,0 +1,60 @@
+{
+  "group_id": "3",
+  "project_title": "Disaster Mapping & Relief Management System",
+  "zip_title": "DisasterMappingReliefManagementSystem",
+  "course_code": "071402 CSE 2206",
+  "course_title": "Database Systems Project/Fieldwork",
+  "submitted_to": {
+    "name": "Aminul Islam",
+    "designation": "Assistant Professor",
+    "department": "Computer Science and Engineering Discipline",
+    "university": "Khulna University"
+  },
+  "university": "Khulna University",
+  "discipline": "Computer Science and Engineering Discipline",
+  "youtube_url": "",
+  "deadline": "not announced",
+  "members": [
+    {
+      "name": "Archy Mondal Urmy",
+      "student_id": "240203",
+      "role": "Database implementation, backend and testing",
+      "contribution_percent": 50,
+      "contributions": [
+        "Conceptual ER diagram and relationship decisions (jointly with Firoz)",
+        "MySQL schema: 25 tables, primary/foreign keys, ON DELETE rules, CHECK constraints, indexes (schema.sql)",
+        "8 integrity triggers and the business rules in inc/rules.php (capacity, stock, batch, transactions with SELECT ... FOR UPDATE)",
+        "Generic CRUD engine (table.php, inc/meta.php), audit log, global search and CSV export",
+        "Sign-in, roles, CSRF protection, session timeout, security headers; installer and in-place upgrade (db.php, inc/upgrade.php)",
+        "Test suites (tests/smoke.php, tests/concurrency.php) and the fixes found by testing"
+      ],
+      "video_sections": [
+        "Part 1 - own introduction and technology stack (0:45)",
+        "Part 2b - keys, constraints, ON DELETE rules, triggers, indexes with EXPLAIN (1:45)",
+        "Part 3a - live CRUD with phpMyAdmin side by side; constraints and triggers rejecting bad data (2:15)",
+        "Part 4a - technical challenge and how it was solved (1:00)"
+      ]
+    },
+    {
+      "name": "Taohiduzzaman Firoz",
+      "student_id": "210232",
+      "role": "Requirements, ER design, reporting queries and frontend",
+      "contribution_percent": 50,
+      "contributions": [
+        "Requirement analysis with the problem statement and the user roles (admin, editor, viewer)",
+        "Conceptual ER diagram, cardinalities and normalization to 3NF (jointly with Urmy)",
+        "Realistic sample data for the Khulna cyclone/flood scenario (sample_data.sql)",
+        "Multi-table report queries in inc/stats.php: warning signals, shelter capacity, relief coverage, cyclone path (haversine distance)",
+        "Dashboard, Live Report (report.js, 5-second refresh), Leaflet map, style.css, responsive layout and the English/Bangla toggle",
+        "Data Health checks and the Inventory & stock page",
+        "User guide, README and the written report"
+      ],
+      "video_sections": [
+        "Part 1 - welcome, problem statement, team roles (1:15)",
+        "Part 2a - ERD: entities, relationships, cardinality, normalization 1NF-3NF/BCNF and the deliberate exceptions (2:00)",
+        "Part 3b - reports from the UI: Live Report panels, path map, disaster report, multi-table query in phpMyAdmin (2:00)",
+        "Part 4b - future scope and closing (0:30)"
+      ]
+    }
+  ]
+}

@@ -22,7 +22,7 @@ show a short summary of them on the **Dashboard**, and deliver a finished, teste
 |---|---|---|
 | What is a "shortage"? | **Automatic + manual**: fewer than 80 % of the affected people have received relief, **or** a coordinator sets `disaster_area.Relief_Shortage = 'Yes'` | The requirement says "if a shortage is flagged" without saying how; this covers both a data-driven and a human judgement |
 | Counts in people or families? | People (sum of `Family_Size`), families shown in small text | "number of people who have received relief" |
-| Which disasters are shown? | Only `disaster.Status = 'Active'` | A finished disaster must leave the live panels |
+| Which disasters are shown? | `disaster.Status` `Active` or `Under control` (lifecycle: Reported -> Active <-> Under control -> Closed) | A closed or merely reported incident must not drive the live panels |
 | Current signal of a disaster | Latest early warning **with a signal number**, ordered by warning time | Independent of the computer's clock |
 | Signal of an area | Highest signal among the active disasters that affect it | Safest reading for the public |
 | "Currently crossing" | Area centre within the **current (latest Actual) position's** impact radius (haversine distance) | Simple, explainable, testable |
@@ -50,7 +50,7 @@ Editors (table.php forms) -> inc/rules.php (friendly rules) -> MySQL triggers + 
 | Change | Purpose |
 |---|---|
 | `early_warning.Signal_Level` (1-10, CHECK) | Feature 1 |
-| `disaster.Status` (`Active` / `Ended`) | Which disasters are live |
+| `disaster.Status` (`Reported` / `Active` / `Under control` / `Closed`; the first release used `Active` / `Ended`) | Which disasters are live |
 | `affected_person.Area_ID` (FK, home area) | Relief status per area |
 | `disaster_area.Relief_Shortage` (`No` / `Yes`) | Manual shortage flag |
 | new table `relief_recipient` | Which family received which distribution |
@@ -72,7 +72,7 @@ Delivery: `inc/upgrade.php` (in place) and `disaster_and_relief_management.sql` 
 
 ## 6. Quality gates (all must pass)
 
-* `php tests/smoke.php` - 84 checks, on an upgraded database, a fresh install, and with the limited MySQL user.
+* `php tests/smoke.php` - 115 checks (84 at the first release), on an upgraded database, a fresh install, and with the limited MySQL user.
 * Upgraded database == fresh install == plain `mysql` client install.
 * Every page and all 21 table pages load in a real browser with no console error and no Content-Security-Policy violation; no sideways scrolling on a phone.
 * Security: no access without sign-in, CSRF, roles enforced on the server, SQL-injection and stored-XSS attempts harmless, lockout and idle timeout, private files not downloadable.
@@ -92,4 +92,4 @@ Delivery: `inc/upgrade.php` (in place) and `disaster_and_relief_management.sql` 
 
 ## 8. Out of scope (possible later work)
 
-Real-time push (WebSocket) instead of 5-second polling; SMS / e-mail alerts; matching needs (`*_emergency_item`) against relief supply; importing live cyclone data from a weather service; multi-language screens.
+Real-time push (WebSocket) instead of 5-second polling; SMS / e-mail alerts; matching needs (`*_emergency_item`) against relief supply; importing live cyclone data from a weather service. (An English / Bangla interface toggle was added later.)

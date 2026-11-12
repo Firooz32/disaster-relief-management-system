@@ -1328,7 +1328,8 @@ CREATE TABLE IF NOT EXISTS `shelter_assignment` (
   `Check_In` date NOT NULL,
   `Check_Out` date DEFAULT NULL,
   PRIMARY KEY (`Assignment_ID`),
-  UNIQUE KEY `uq_assignment_disaster_person` (`Disaster_ID`,`Person_ID`),
+  KEY `ix_assignment_disaster_person` (`Disaster_ID`,`Person_ID`),
+  UNIQUE KEY `uq_assignment_open_stay` ((IF(`Check_Out` IS NULL, `Person_ID`, NULL))),
   KEY `fk_assignment_person` (`Person_ID`),
   KEY `fk_assignment_shelter` (`Shelter_ID`),
   CONSTRAINT `chk_assignment_dates` CHECK (`Check_Out` IS NULL OR `Check_Out` >= `Check_In`)
