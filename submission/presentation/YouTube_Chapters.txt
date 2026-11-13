@@ -1,0 +1,8 @@
+0:00 Introduction and problem
+1:04 Technology stack
+1:41 Database design: ERD, keys, triggers
+5:26 Live demo: create, read, update, delete
+8:43 Reports: signals, shelters, relief, path map
+10:23 Challenges and future work
+
+Music: White Moon by BigRicePiano

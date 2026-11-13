@@ -12,3 +12,6 @@ Thumbs.db
 # large media (over GitHub's 100 MB limit; videos live on YouTube / locally)
 *.mp4
 *.mp3
+
+# voice mix working files
+Voice Clip/_work/
